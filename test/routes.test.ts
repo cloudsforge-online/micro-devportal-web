@@ -116,8 +116,8 @@ describe('which routes are public matches which routes devplatform leaves unauth
   /**
    * THE ASSERTION THIS FILE EXISTS FOR, ALONGSIDE THE nginx ONE.
    *
-   * `GET /v1/scopes` (`devplatform/src/server.ts:604`), `GET /v1/apps` (`:1022`) and
-   * `GET /v1/apps/:slug` (`:1027`) read no credential at all. Gating a screen built from them would
+   * `GET /v1/scopes` (`devplatform/src/server.ts:712`), `GET /v1/apps` (`:1263`) and
+   * `GET /v1/apps/:slug` (`:1291`) read no credential at all. Gating a screen built from them would
    * send a visitor to sign in for a page the service would have served them — and the estate has
    * already shipped the mirror-image defect, a client sending a bearer to a route with no
    * authentication and then reasoning about a 403 that was never about authorisation.

@@ -511,6 +511,46 @@
   font-size: var(--cf-text-sm);
 }
 
+/*
+  One field and one button on a table row — the quota-lowering control.
+
+  Not `.dp-form`: that is a card with a border and a background, and thirteen of them stacked
+  inside a table would bury the numbers the table exists to show. This is the same input and the
+  same button with no chrome of its own.
+*/
+.dp-inline-form {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--cf-space-xs);
+  align-items: center;
+}
+
+.dp-field--inline {
+  inline-size: auto;
+}
+
+.dp-field--inline .dp-input {
+  inline-size: 9rem;
+}
+
+/*
+  Visible to a screen reader, absent from the page.
+
+  The quota control's label names the environment, the period and the current value, because
+  thirteen inputs in a column all reading "New limit" are thirteen inputs a screen-reader user
+  cannot tell apart. Sighted readers get that context from the row they are in. `clip-path`
+  rather than `display: none` — the latter takes it out of the accessibility tree as well, which
+  is the whole thing being avoided.
+*/
+.dp-field__label--sr {
+  position: absolute;
+  inline-size: 1px;
+  block-size: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
 .dp-toolbar {
   display: flex;
   flex-wrap: wrap;

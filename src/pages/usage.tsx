@@ -1,21 +1,32 @@
 /**
  * Quotas and usage.
  *
- * Two reads: `GET /v1/projects/:id/quotas` (`devplatform/src/server.ts:856`) and
- * `GET /v1/projects/:id/usage` (`devplatform/src/server.ts:866`), both `project:read`.
+ * Two reads: `GET /v1/projects/:id/quotas` (`devplatform/src/server.ts:1063`) and
+ * `GET /v1/projects/:id/usage` (`devplatform/src/server.ts:1073`), both `project:read`.
  *
  * ══════════════════════════════════════════════════════════════════════════════════════════════
- * `PUT /v1/projects/:id/quotas` IS DELIBERATELY NOT DRAWN, AND THE REASON IS A DEFECT REPORT.
+ * THIS SCREEN LOWERS A LIMIT AND CANNOT RAISE ONE, AND THAT IS THE SERVICE'S RULE RATHER THAN
+ * THIS SCREEN'S MANNERS.
  *
- * The route exists (`devplatform/src/server.ts:836`) and it is `project:write` (`:837`) — the same
- * authority that issues a key. `setQuota` accepts any whole number of at least 1, with no ceiling
- * of any kind (`devplatform/src/quotas.ts:112-126`). So the owner of a project may set their own
- * rate limit to whatever they like.
+ * The earlier version of this file drew no quota control at all, because
+ * `PUT /v1/projects/:id/quotas` was plain `project:write` and `setQuota` accepted any whole number
+ * with no ceiling — the party the limit binds chose the limit. That was reported and
+ * `micro-devplatform@e13c154` fixed it. **The direction is now the authority**
+ * (`devplatform/src/server.ts:1038-1052`):
  *
- * A "raise my limit" control in a customer console would make the platform's quota advisory, and
- * this is a customer console. The route belongs to the operator surface, where a limit is a
- * decision somebody else makes. Reported to micro-devplatform; not exercised here, and recorded as
- * a declined route in src/lib/devplatform.ts so the omission is a decision rather than a gap.
+ *   * lowering, or writing the same value, is `project:write` — the customer's own safety feature;
+ *   * raising is an operator's, and a browser can never be one: `devplatform:admin` is absent from
+ *     `devplatform/src/scopes.ts:5-19`, so no API key can hold it;
+ *   * CREATING a row is also an operator's, because a missing row means UNLIMITED rather than
+ *     zero — a finite value written where there was none is a raise wearing a reduction's clothes.
+ *
+ * So the control below appears only next to a quota that EXISTS, and it refuses a larger number
+ * before the request is built (`lowerQuota` in src/lib/devplatform.ts). The service would refuse it
+ * too; refusing here as well means a developer who types a bigger number reads a sentence about
+ * the rule rather than a 403 about their authority.
+ *
+ * A developer capping a test environment so a runaway loop cannot burn the month's allowance is
+ * doing the platform's work for it. Making that need a support ticket means nobody ever does it.
  * ══════════════════════════════════════════════════════════════════════════════════════════════
  *
  * ── The counter is a row, so these numbers are the estate's ───────────────────────────────────
@@ -28,12 +39,22 @@
  *
  * There is no "over the limit" rendering, for the same reason: it is not a state a row can be in.
  */
+import { useState } from 'react'
 import { useParams } from 'react-router-dom'
 import { Empty, Failed, Loading, Note } from '../components/states.tsx'
 import { Identifier, StateBadge } from '../components/tone.tsx'
 import { useResource } from '../lib/resource.ts'
+import { useMutation } from '../lib/mutation.ts'
 import { count, percent, quotaTone, when } from '../lib/format.ts'
-import { getQuotas, getProject, listUsage } from '../lib/devplatform.ts'
+import {
+  getQuotas,
+  getProject,
+  listUsage,
+  lowerQuota,
+  type Environment,
+  type KeyEnvironment,
+  type Quota,
+} from '../lib/devplatform.ts'
 
 export function UsagePage() {
   const { id = '' } = useParams()
@@ -56,10 +77,22 @@ export function UsagePage() {
     [id],
   )
 
-  /** Environment ids appear on quota and usage rows; the names come from the project. */
+  /**
+   * The environment ROW for an id, or null while the project is still loading.
+   *
+   * Quota and usage rows carry ids; the names live on the project. Returning the row rather than a
+   * string matters for the lowering control: `PUT …/quotas` wants the NAME in its body
+   * (`requireEnvironment`, `devplatform/src/server.ts:1014`), and a lookup that fell back to
+   * echoing the id would produce a control that posts an id where a name belongs and gets a 400
+   * naming a field the reader never filled in. No fallback: no row, no control.
+   */
+  const environmentOf = (environmentId: string): Environment | null =>
+    project.data?.project.environments.find((environment) => environment.id === environmentId) ??
+    null
+
+  /** For display only, where showing the raw id is better than showing nothing. */
   const nameOf = (environmentId: string): string =>
-    project.data?.project.environments.find((environment) => environment.id === environmentId)
-      ?.name ?? environmentId
+    environmentOf(environmentId)?.name ?? environmentId
 
   return (
     <>
@@ -85,8 +118,8 @@ export function UsagePage() {
           <div className="dp-tablewrap">
             <table className="dp-table">
               <caption className="dp-table__caption">
-                The configured limits. Changing one is an operator action and is not offered here —
-                see the note below.
+                The configured limits. You may lower one; raising it is CloudsForge’s decision, and
+                the platform refuses a larger number whoever asks.
               </caption>
               <thead>
                 <tr>
@@ -94,6 +127,7 @@ export function UsagePage() {
                   <th scope="col">Meter</th>
                   <th scope="col">Period</th>
                   <th scope="col">Limit</th>
+                  <th scope="col">Lower it</th>
                 </tr>
               </thead>
               <tbody>
@@ -105,6 +139,26 @@ export function UsagePage() {
                     </td>
                     <td>{quota.period}</td>
                     <td>{count(quota.maxUnits)}</td>
+                    <td>
+                      {/*
+                        No control until the project has loaded and the id has resolved to a real
+                        environment row. The route wants the environment NAME, and a cast from a
+                        fallback id would post an id where a name belongs.
+                      */}
+                      {(() => {
+                        const environment = environmentOf(quota.environmentId)
+                        return environment ? (
+                          <LowerLimit
+                            projectId={id}
+                            quota={quota}
+                            environment={environment.name}
+                            onChanged={quotas.reload}
+                          />
+                        ) : (
+                          <span className="dp-absent">—</span>
+                        )
+                      })()}
+                    </td>
                   </tr>
                 ))}
               </tbody>
@@ -142,9 +196,10 @@ export function UsagePage() {
           ))}
 
           <Note>
-            Raising a limit is not something this console does. The route that sets a quota takes the
-            same authority that issues a key and accepts any number, so a self-service control here
-            would make the limit advisory. Ask CloudsForge to change it.
+            <strong>Raising a limit is not something this console does</strong>, and not because it
+            declines to: the platform refuses a larger number from any credential a browser can
+            hold. Lowering is yours, and it is worth using — a cap on your test environment is what
+            stops a runaway loop spending the month’s allowance. To raise one, ask CloudsForge.
           </Note>
         </>
       )}
@@ -194,5 +249,87 @@ export function UsagePage() {
         </div>
       )}
     </>
+  )
+}
+
+/**
+ * Lower one quota, for one environment and one period.
+ *
+ * ── WHY THE FIELD IS `max={quota.maxUnits}` AND THE CHECK IS ALSO IN THE CLIENT ───────────────
+ *
+ * Three layers, and each catches something the next cannot. `max` on the input is the one a
+ * developer meets first and costs nothing. `lowerQuota` refuses a larger number before the request
+ * is built, because `max` is advisory in every browser and a typed number can exceed it.
+ * `devplatform` refuses it again with a 403 naming the current value, and THAT is the authority —
+ * the two here exist so a developer reads a sentence about the rule instead of a refusal about
+ * their authority, not because the service is trusted less.
+ *
+ * **A lowered limit takes effect on the next window, not retroactively.** `quota_windows` rows
+ * already open keep the count they have; the new limit is what the next `consumeAll` compares
+ * against. Said on the button's help text rather than left to be discovered by somebody who
+ * lowered a limit during an incident and expected traffic to stop immediately.
+ *
+ * The environment is passed by NAME because that is what the route's body wants
+ * (`requireEnvironment`, `devplatform/src/server.ts:1014`) — the table renders names and the rows
+ * carry ids, so the mapping happens once, in `nameOf`, rather than twice.
+ */
+function LowerLimit({
+  projectId,
+  quota,
+  environment,
+  onChanged,
+}: {
+  projectId: string
+  quota: Quota
+  environment: KeyEnvironment
+  onChanged: () => void
+}) {
+  const [value, setValue] = useState('')
+  const wanted = Number(value)
+  const usable = value.trim() !== '' && Number.isInteger(wanted) && wanted >= 1 && wanted < quota.maxUnits
+
+  const lower = useMutation(
+    () =>
+      lowerQuota(projectId, {
+        environment,
+        period: quota.period,
+        maxUnits: wanted,
+        current: quota.maxUnits,
+      }),
+    'The limit was not changed.',
+  )
+
+  return (
+    <form
+      className="dp-inline-form"
+      onSubmit={(event) => {
+        event.preventDefault()
+        void lower.run().then((result) => {
+          if (!result) return
+          setValue('')
+          onChanged()
+        })
+      }}
+    >
+      <label className="dp-field dp-field--inline">
+        <span className="dp-field__label dp-field__label--sr">
+          New {quota.period} limit for {environment}, lower than {count(quota.maxUnits)}
+        </span>
+        <input
+          className="dp-input cf-num"
+          type="number"
+          min={1}
+          max={quota.maxUnits - 1}
+          step={1}
+          value={value}
+          placeholder={String(quota.maxUnits)}
+          onChange={(event) => setValue(event.currentTarget.value)}
+        />
+      </label>
+      <button type="submit" className="cf-btn" disabled={!usable || lower.busy}>
+        {lower.busy ? 'Lowering…' : 'Lower'}
+      </button>
+      {lower.error && <Failed notice={lower.error} title="That limit was not changed" />}
+    </form>
   )
 }

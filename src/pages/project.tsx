@@ -2,12 +2,12 @@
  * One project: the chrome its five sections sit inside, plus the overview.
  *
  * `ProjectShell` fetches the project once (`GET /v1/projects/:id`,
- * `devplatform/src/server.ts:694`) and renders the section navigation. Every child screen fetches
+ * `devplatform/src/server.ts:838`) and renders the section navigation. Every child screen fetches
  * its own resource, because a project console that fetched everything on mount would make a reader
  * wait for the webhook deliveries to see their keys.
  *
  * A **404 is not "somebody else's project"**: `authoriseProject` answers `NotFoundError` for a
- * project the caller cannot see (`devplatform/src/server.ts:518-520`) precisely so project ids are
+ * project the caller cannot see (`devplatform/src/server.ts:626-628`) precisely so project ids are
  * not enumerable across customers.
  */
 import { useState } from 'react'
@@ -26,7 +26,6 @@ import {
   listServiceAccounts,
   submitApplication,
   upsertApplication,
-  REVIEW_GAP,
 } from '../lib/devplatform.ts'
 
 export function ProjectShell() {
@@ -176,7 +175,7 @@ export function ProjectOverviewPage() {
  * `POST /v1/projects/:id/service-accounts` is not wrapped, because `service_accounts_name_uniq`
  * makes `(project, name)` the natural key and `createServiceAccount` is `on conflict do nothing`
  * then read — so a retry returns the first account rather than creating a second
- * (`devplatform/src/server.ts:701-705`). Sending a header the route does not read would make this
+ * (`devplatform/src/server.ts:845-849`). Sending a header the route does not read would make this
  * client look like it were protecting something it is not.
  */
 function NewServiceAccount({
@@ -237,18 +236,31 @@ function NewServiceAccount({
 /**
  * The project's directory listing.
  *
- * Three routes: `GET /v1/projects/:id/application` (`devplatform/src/server.ts:1048`),
- * `PUT …/application` (`:1034`) and `POST …/application/submit` (`:1056`). None takes an
+ * Three routes: `GET /v1/projects/:id/application` (`devplatform/src/server.ts:1312`),
+ * `PUT …/application` (`:1298`) and `POST …/application/submit` (`:1320`). None takes an
  * `Idempotency-Key`: the PUT is an upsert on `project_id` and the submit is a state transition
  * claimed with `where status in (…)`, so the second attempt matches no row.
  *
- * **A 404 from the GET is the normal answer for a project that has never written one** (`:1051`),
+ * **A 404 from the GET is the normal answer for a project that has never written one** (`:1315`),
  * so it is rendered as an invitation. It is the one place in this client where a 404 is the
  * expected outcome of a correct request.
  *
  * **Editing a listed application does not un-list it and does not re-open review**
- * (`devplatform/src/applications.ts:96-101`). Said on the screen, because a developer who believes
+ * (`devplatform/src/applications.ts:160-165`). Said on the screen, because a developer who believes
  * a typo fix will pull their listing will not fix the typo.
+ *
+ * ── THE REVIEWER'S SIDE EXISTS NOW, AND THIS SCREEN IS NOT IT ─────────────────────────────────
+ *
+ * Until `micro-devplatform@e13c154` `setApplicationStatus` was imported by the server and called
+ * by no route, so a submission sat in `in_review` for ever and this screen said so.
+ * `PUT /v1/projects/:id/application/status` (`devplatform/src/server.ts:1344`) closes it — and is
+ * DECLINED in src/lib/devplatform.ts, because it is an operator's and this is the submitting
+ * party's console. The right change here was to delete a warning, not to draw a button.
+ *
+ * `rejected` is the new status a developer will actually meet, and it is not `delisted`: a
+ * reviewer declined a listing that was never public. `submitForReview` accepts it as a source
+ * (`devplatform/src/applications.ts:80-87`), so the submit control is offered from `rejected` as
+ * well as from `draft`.
  */
 function ApplicationSection({ projectId }: { projectId: string }) {
   const listing = useResource(
@@ -293,17 +305,33 @@ function ApplicationSection({ projectId }: { projectId: string }) {
             </Fact>
             <Fact label="Listed">{when(current.listedAt, 'not listed')}</Fact>
           </dl>
-          {current.status === 'draft' && (
+          {(current.status === 'draft' || current.status === 'rejected') && (
             <button
               type="button"
               className="cf-btn cf-btn--primary"
               disabled={submit.busy}
               onClick={() => void submit.run().then(() => listing.reload())}
             >
-              {submit.busy ? 'Submitting…' : 'Submit for review'}
+              {submit.busy
+                ? 'Submitting…'
+                : current.status === 'rejected'
+                  ? 'Submit again'
+                  : 'Submit for review'}
             </button>
           )}
-          {current.status === 'in_review' && <Note tone="warn">{REVIEW_GAP.finding}</Note>}
+          {current.status === 'in_review' && (
+            <Note>
+              Submitted, and waiting for a CloudsForge reviewer. You cannot approve your own listing
+              and neither can this console — a directory a developer could publish into unilaterally
+              would not be a reviewed one.
+            </Note>
+          )}
+          {current.status === 'rejected' && (
+            <Note tone="warn">
+              A reviewer declined this listing. It was never public, and this is not final: change
+              the copy above and submit it again.
+            </Note>
+          )}
           {current.status === 'listed' && (
             <Note>
               Editing this copy will not remove it from the directory and will not send it back for

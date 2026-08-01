@@ -1,7 +1,7 @@
 /**
  * The index: what a credential on this platform can be, before anybody has one.
  *
- * PUBLIC, because `GET /v1/scopes` is (`devplatform/src/server.ts:604`). The person this page is
+ * PUBLIC, because `GET /v1/scopes` is (`devplatform/src/server.ts:712`). The person this page is
  * written for has not signed in and is deciding whether to.
  *
  * It renders the scope vocabulary as a table rather than as prose, because the vocabulary IS the

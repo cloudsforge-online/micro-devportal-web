@@ -2,8 +2,8 @@
  * Webhook endpoints: register one, rotate its secret, disable it, delete it, read its deliveries.
  *
  * Five routes, and one of them returns a secret twice as often as any other in this service — a
- * rotation. `POST /v1/webhook-endpoints/:id/rotate-secret` (`devplatform/src/server.ts:916`) is
- * wrapped for the reason the service states at `:912-914`: a retry without the wrapper "mints a
+ * rotation. `POST /v1/webhook-endpoints/:id/rotate-secret` (`devplatform/src/server.ts:1123`) is
+ * wrapped for the reason the service states at `:1119-1121`: a retry without the wrapper "mints a
  * second secret and retires the one the customer has just been shown but has not yet deployed".
  *
  * ══════════════════════════════════════════════════════════════════════════════════════════════
@@ -11,19 +11,29 @@
  * SAYS SO RATHER THAN IMPLYING OTHERWISE.
  *
  * `webhook_secrets` holds plaintext, because "HMAC is not a one-way function of an input we do not
- * have: signing a delivery requires the secret itself" (`devplatform/src/migrations.ts:44-51`). It
+ * have: signing a delivery requires the secret itself" (`devplatform/src/migrations.ts:59-66`). It
  * is still shown once — no route returns it afterwards (`devplatform/src/webhooks.ts:147`) — but
  * saying it is hashed like an API key would be false. `WEBHOOK_SECRET_NOTE` in src/lib/format.ts is
  * the wording, and it is deliberately different from `SHOWN_ONCE`.
  * ══════════════════════════════════════════════════════════════════════════════════════════════
  *
- * ── Two facts about disabling, both read off the service ──────────────────────────────────────
+ * ── DISABLE AND ENABLE ARE TWO BUTTONS, NEVER ONE SWITCH ──────────────────────────────────────
  *
- * `POST /v1/webhook-endpoints/:id/disable` passes `true` unconditionally
- * (`devplatform/src/server.ts:944`). It is not a toggle and there is no route that re-enables an
- * endpoint. So the control is labelled "Disable" rather than drawn as a switch, and the screen says
- * what the way back actually is: delete it and register it again, which mints a new secret.
- * Reported.
+ * This screen used to say "there is no route that re-enables one", and it was right: `/disable`
+ * passed `true` unconditionally and had no inverse, so the only way back was to DELETE the
+ * endpoint — new signing secret, delivery history gone, subscriber redeploys, during the incident
+ * the endpoint was disabled for. That was reported and
+ * `POST /v1/webhook-endpoints/:id/enable` (`devplatform/src/server.ts:1178`) is the answer.
+ *
+ * It is still not drawn as a toggle. The service made it two verbs on purpose
+ * (`devplatform/src/server.ts:1167-1170`): "a client that inverted the flag would silently do the
+ * opposite of what its operator intended". One of these stops a customer's integration and the
+ * other starts it, and a switch makes them look equally consequential.
+ *
+ * **Nothing is replayed on re-enabling**, and the screen says so, because the opposite is the
+ * reasonable assumption. `enqueueDeliveries` selects `where e.disabled_at is null`
+ * (`devplatform/src/webhooks.ts:380`), so while the endpoint was off nothing was queued for it —
+ * an operator waiting for the backlog to arrive would wait for ever.
  */
 import { useState } from 'react'
 import { useParams } from 'react-router-dom'
@@ -37,6 +47,7 @@ import {
   createEndpoint,
   deleteEndpoint,
   disableEndpoint,
+  enableEndpoint,
   listDeliveries,
   listEndpoints,
   rotateEndpointSecret,
@@ -110,7 +121,7 @@ export function WebhooksPage() {
 /**
  * Register an endpoint.
  *
- * **Wrapped, so an `Idempotency-Key` is required** (`devplatform/src/server.ts:884`).
+ * **Wrapped, so an `Idempotency-Key` is required** (`devplatform/src/server.ts:1091`).
  *
  * Four refusals are the service's and are surfaced verbatim rather than pre-empted with a guess in
  * this bundle: https only with no loopback or link-local (`devplatform/src/webhooks.ts:106-136`,
@@ -237,7 +248,14 @@ function NewEndpoint({ projectId, onCreated }: { projectId: string; onCreated: (
   )
 }
 
-/** Rotate, disable and delete, for one endpoint. */
+/**
+ * Rotate, disable, enable and delete, for one endpoint.
+ *
+ * **Exactly one of Disable and Enable is drawn, chosen by `disabledAt`.** Not both greyed, and not
+ * a switch: the service is two routes rather than a boolean precisely so that a client cannot
+ * invert the meaning, and a control that renders both actions at once invites the mis-click the
+ * two-verb design exists to prevent.
+ */
 function EndpointControls({
   id,
   disabled,
@@ -256,6 +274,7 @@ function EndpointControls({
   }, 'The secret could not be rotated.')
 
   const turnOff = useMutation(() => disableEndpoint(id), 'The endpoint could not be disabled.')
+  const turnOn = useMutation(() => enableEndpoint(id), 'The endpoint could not be re-enabled.')
   const remove = useMutation(() => deleteEndpoint(id), 'The endpoint could not be deleted.')
 
   return (
@@ -268,7 +287,16 @@ function EndpointControls({
       >
         {rotate.busy ? 'Rotating…' : 'Rotate secret'}
       </button>
-      {!disabled && (
+      {disabled ? (
+        <button
+          type="button"
+          className="cf-btn cf-btn--primary"
+          disabled={turnOn.busy}
+          onClick={() => void turnOn.run().then((result) => result && onChanged())}
+        >
+          {turnOn.busy ? 'Enabling…' : 'Enable'}
+        </button>
+      ) : (
         <button
           type="button"
           className="cf-btn"
@@ -289,14 +317,16 @@ function EndpointControls({
 
       {disabled && (
         <Note tone="warn">
-          Disabled endpoints stay disabled: this platform has no route that re-enables one. To
-          receive events at this address again, delete it and register it — which mints a new signing
-          secret you will have to deploy.
+          This endpoint is disabled and is receiving nothing. <strong>Enable</strong> puts it back —
+          the same URL, the same signing secret, the same delivery history. Events produced while it
+          was disabled were never queued for it and will not arrive afterwards, so anything missed in
+          that window has to be reconciled from your own side.
         </Note>
       )}
 
       {rotate.error && <Failed notice={rotate.error} title="The secret was not rotated" />}
       {turnOff.error && <Failed notice={turnOff.error} title="That was not disabled" />}
+      {turnOn.error && <Failed notice={turnOn.error} title="That was not enabled" />}
       {remove.error && <Failed notice={remove.error} title="That was not deleted" />}
 
       {rotated?.secret && (
@@ -312,7 +342,7 @@ function EndpointControls({
           <p className="dp-once__extra">
             {/*
               The overlap is the number a rotation screen exists to print. `overlapMinutes` comes
-              from the response (`devplatform/src/server.ts:931`), not from a constant here, because
+              from the response (`devplatform/src/server.ts:1138`), not from a constant here, because
               it is a deployed configuration value (`DEVPLATFORM_WEBHOOK_ROTATION_OVERLAP_MINUTES`,
               `devplatform/src/env.ts:213`) and a screen that guessed it would cause the outage it
               exists to prevent.
@@ -341,7 +371,7 @@ function EndpointControls({
  * The newest 50 (`devplatform/src/webhooks.ts:536-539`). **An abandoned delivery is not a pending
  * one**, and the distinction is the whole reason this list is worth rendering: a row past the
  * attempt ceiling is retained rather than deleted "because the row is the only record that a
- * customer was sent an event and never took it" (`devplatform/src/server.ts:248-253`), so it sits
+ * customer was sent an event and never took it" (`devplatform/src/server.ts:289-294`), so it sits
  * here for ever and would read as "still trying" without the badge.
  */
 function Deliveries({ endpointId }: { endpointId: string }) {

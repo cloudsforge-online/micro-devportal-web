@@ -61,7 +61,7 @@ describe('reading the developer out of an /auth/me body', () => {
   it('DROPS an organisation with no id rather than inventing a placeholder', () => {
     // The id is what an enrolment names. A placeholder would enrol a developer organisation against
     // an identity organisation the user has nothing to do with — which devplatform refuses at
-    // `devplatform/src/server.ts:644-645`, but only after this app has asked it to.
+    // `devplatform/src/server.ts:752-753`, but only after this app has asked it to.
     const developer = readDeveloper({
       user: { id: 'u-1' },
       organisations: [{ name: 'No id', role: 'owner' }, { id: 'o-2', name: 'Fine', role: 'admin' }],

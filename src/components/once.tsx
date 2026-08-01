@@ -6,19 +6,19 @@
  *
  * Four routes on `devplatform` return a credential and none of them returns it twice:
  *
- *   `POST /v1/projects/:id/keys`                   → `secretKey`  (`devplatform/src/server.ts:780`)
- *   `POST /v1/projects/:id/webhook-endpoints`      → `secret`     (`devplatform/src/server.ts:904`)
- *   `POST /v1/webhook-endpoints/:id/rotate-secret` → `secret`     (`devplatform/src/server.ts:934`)
- *   `POST /v1/projects/:id/oauth-clients`          → `clientSecret` (`devplatform/src/server.ts:1000`)
+ *   `POST /v1/projects/:id/keys`                   → `secretKey`  (`devplatform/src/server.ts:924`)
+ *   `POST /v1/projects/:id/webhook-endpoints`      → `secret`     (`devplatform/src/server.ts:1111`)
+ *   `POST /v1/webhook-endpoints/:id/rotate-secret` → `secret`     (`devplatform/src/server.ts:1141`)
+ *   `POST /v1/projects/:id/oauth-clients`          → `clientSecret` (`devplatform/src/server.ts:1241`)
  *
  * For an API key and an OAuth client secret, "cannot be shown again" is not a policy that could be
  * relaxed by an operator with database access: **there is no column the secret could be read back
  * from.** `api_keys` stores `secret_algo`, `secret_salt` and `secret_hash` and nothing else, and
  * the CHECK constraint `api_keys_slow_kdf_only` refuses any row whose recorded algorithm is not a
- * scrypt encoding (`devplatform/src/migrations.ts:189`); `oauth_clients` carries the same
- * constraint (`devplatform/src/migrations.ts:229`). The schema's own comment names what it is for:
+ * scrypt encoding (`devplatform/src/migrations.ts:204`); `oauth_clients` carries the same
+ * constraint (`devplatform/src/migrations.ts:244`). The schema's own comment names what it is for:
  * "the day someone reaches for createHash because it is one line shorter, this is what stops it"
- * (`devplatform/src/migrations.ts:186-188`).
+ * (`devplatform/src/migrations.ts:201-203`).
  *
  * So the fact this component has to convey is not "please copy this" — it is "if this window
  * closes without you copying it, the credential exists, it is live, and nobody on Earth can tell
@@ -52,7 +52,7 @@
  *     acknowledgement. Nothing here touches `localStorage`, and `test/render.test.ts` refuses the
  *     identifier in this directory at all.
  *   * It must not be rendered for a REPLAY. `secretKey` is null when the idempotency wrapper
- *     returned a stored response (`devplatform/src/server.ts:773-780`), and a modal saying "copy
+ *     returned a stored response (`devplatform/src/server.ts:917-924`), and a modal saying "copy
  *     this now" over an empty box would be this app inventing a failure. `<Replayed>` below is the
  *     screen for that case, and it says what actually happened.
  * ══════════════════════════════════════════════════════════════════════════════════════════════
@@ -235,7 +235,7 @@ export function ShownOnce({ kind, secret, note, label, children, onAcknowledge }
  *
  * When an `Idempotency-Key` is presented a second time for the same request, `devplatform` returns
  * the stored response with `replayed: true` — and the stored response deliberately carries the
- * metadata only, so the credential field is `null` (`devplatform/src/server.ts:731-734`). The
+ * metadata only, so the credential field is `null` (`devplatform/src/server.ts:875-878`). The
  * artefact exists and is live; it was shown when it was created and it cannot be shown now.
  *
  * A client that rendered that as an error would tell a developer their key had failed to be

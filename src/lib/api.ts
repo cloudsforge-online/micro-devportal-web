@@ -257,9 +257,9 @@ export interface RequestOptions {
    *
    * **Five routes on `devplatform` require one, and eleven other mutations do not.**
    * `withIdempotentRoute` throws a `BadRequestError` when the header is missing or outside 8–200
-   * characters (`devplatform/src/server.ts:1293-1298`), so a POST without it is a **400**. The
+   * characters (`devplatform/src/server.ts:1589-1594`), so a POST without it is a **400**. The
    * eleven exempt mutations each name the mechanism that makes them safe without a wrapper, in
-   * `devplatform/src/routeidempotency.test.ts:34-62`, and sending a header they never read would
+   * `devplatform/src/routeidempotency.test.ts:34-68`, and sending a header they never read would
    * be this client inventing a contract. Which is which is decided once, in src/lib/idempotency.ts.
    *
    * `authorization` and `content-type` are set by this function AFTER these are spread, so a

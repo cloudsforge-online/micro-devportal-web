@@ -82,7 +82,7 @@ jobs:
       # `test/devplatform.test.ts` reads `devplatform/src/server.ts` and requires that every route
       # this bundle calls is registered at the line its citation names, that each authenticates by
       # the MECHANISM the table records — not by a boolean, because no handler on this service
-      # contains a literal `authenticate(ctx, deps)` and a boolean check would call all thirty-one
+      # contains a literal `authenticate(ctx, deps)` and a boolean check would call all thirty-five
       # routes public — and that the client sends an `Idempotency-Key` to exactly the five wrapped
       # routes. Eight clients in this estate were built against a surface somebody imagined.
       #
@@ -245,7 +245,7 @@ jobs:
             echo "::error::the route cross-check did not run against devplatform/src/server.ts"
             exit 1
           }
-          # Twenty-seven called routes plus four declined ones, each asserted against its own line.
+          # Thirty called routes plus five declined ones, each asserted against its own line.
           #
           # DEDUPED before counting. node:test names each subtest twice — once as it runs and once
           # in the summary — so a raw `grep -c` reports double. The threshold would still pass, so
@@ -253,15 +253,21 @@ jobs:
           # whole repository is built to avoid. A number nobody can reconcile is a number somebody
           # eventually reasons from.
           count=$(printf '%s\n' "$out" | grep -oE 'is registered at devplatform/src/server\.ts:[0-9]+' | sort -u | wc -l | tr -d ' ')
-          [ "$count" -ge 31 ] || {
-            echo "::error::only $count route citations were verified; the surface has thirty-one"
+          [ "$count" -ge 35 ] || {
+            echo "::error::only $count route citations were verified; the surface has thirty-five"
             exit 1
           }
           # And the MECHANISM half really ran too. A suite that verified every citation and skipped
           # every authentication check would pass the line above while leaving the one property this
           # service makes hard — that no handler calls `authenticate` directly — entirely unmeasured.
-          auth=$(printf '%s\n' "$out" | grep -oE 'authenticates by [a-z+:]+' | wc -l | tr -d ' ')
-          [ "$auth" -ge 31 ] || {
+          #
+          # The mechanism names are matched with a character class that has to include every one the
+          # table can hold. `operator-or-lower` and `user+member` arrived with
+          # micro-devplatform@e13c154, and a class without a hyphen in it would have matched
+          # `operator` and stopped — counting the route whose authority is a DIRECTION as if it were
+          # a plain operator route, which is the one this repository cared most about.
+          auth=$(printf '%s\n' "$out" | grep -oE 'authenticates by [a-z+:-]+' | wc -l | tr -d ' ')
+          [ "$auth" -ge 35 ] || {
             echo "::error::only $auth routes had their authentication mechanism checked"
             exit 1
           }
@@ -492,9 +498,13 @@ jobs:
         # the `devplatform/src/server.ts:<line>` citations.
         run: |
           set -uo pipefail
+          # Lines carrying a citation, not routes: one wrapper's prose often cites several. The
+          # floor is the ROUTE COUNT, which every one of them must at least reach — the exact
+          # per-route check is test/devplatform.test.ts's, and this is the half that survives the
+          # test file being deleted.
           cites=$(grep -coE 'devplatform/src/server\.ts:[0-9]+' src/lib/devplatform.ts || true)
-          if [ "${cites:-0}" -lt 31 ]; then
-            echo "::error::src/lib/devplatform.ts carries ${cites:-0} route citations; the surface has thirty-one routes"
+          if [ "${cites:-0}" -lt 35 ]; then
+            echo "::error::src/lib/devplatform.ts carries ${cites:-0} lines of route citation; the surface has thirty-five routes"
             exit 1
           fi
           if grep -rn --include='*.tsx' -E "api<[^>]*>\(\s*[\`'\"]/v1/" src; then
@@ -571,7 +581,7 @@ jobs:
       - name: No act-as-anyone parameter
         # A developer acts as themselves. devplatform derives the acting principal from the token
         # and reads a project's organisation from the ROW rather than from the request
-        # (devplatform/src/server.ts:522-527), so there is no parameter to expose — and a control
+        # (devplatform/src/server.ts:630-635), so there is no parameter to expose — and a control
         # shaped like one in a customer console is how an operator primitive ends up in a product.
         run: |
           set -uo pipefail
@@ -581,21 +591,66 @@ jobs:
           fi
           echo "ok: no act-as-anyone primitive"
 
-      - name: No self-service quota raise
-        # PUT /v1/projects/:id/quotas is project:write and accepts any number with no ceiling
-        # (devplatform/src/quotas.ts:112-126). A control here would make the platform's limit
-        # advisory. Declined in src/lib/devplatform.ts and asserted as an absence, because the
-        # vocabulary is what would arrive first.
+      - name: A quota may be lowered here and never raised
+        # ──────────────────────────────────────────────────────────────────────────────────────
+        # THE ROUTE CHANGED UNDER THIS RULE; THE RULE DID NOT.
+        #
+        # This step used to forbid any quota-setting vocabulary outright, because
+        # PUT /v1/projects/:id/quotas was plain project:write with no ceiling — the party the
+        # limit binds chose the limit. micro-devplatform@e13c154 made the DIRECTION the authority:
+        # lowering is project:write, raising and creating are an operator's, and a browser can
+        # never be an operator because devplatform:admin is absent from scopes.ts.
+        #
+        # So the lowering control is allowed and the raise vocabulary is still forbidden. Two
+        # things are asserted rather than one, because "no raise" alone is satisfied by a file
+        # that lost the control entirely, and a rule that passes when the feature is deleted is a
+        # rule that eventually deletes it.
+        # ──────────────────────────────────────────────────────────────────────────────────────
         run: |
           set -uo pipefail
           strip() { perl -0pe 's{/\*.*?\*/}{}gs; s{^\s*//.*$}{}gm' "$1"; }
           for f in $(find src -name '*.ts' -o -name '*.tsx'); do
-            if strip "$f" | grep -nE 'setQuota|putQuota|raiseLimit' | sed "s|^|$f:|" | grep .; then
-              echo "::error::this console does not set its own quota"
+            if strip "$f" | grep -nE 'setQuota|putQuota|raiseLimit|raiseQuota' | sed "s|^|$f:|" | grep .; then
+              echo "::error::this console lowers a quota and never raises one"
               exit 1
             fi
           done
-          echo "ok: no quota-setting control"
+          # The direction check is in the client, before the request is built. Without it the page
+          # would post a raise and read a 403, which teaches a developer the control is broken
+          # rather than that the rule exists.
+          strip src/lib/devplatform.ts | grep -q 'quota_raise_refused' || {
+            echo "::error::src/lib/devplatform.ts no longer refuses a quota raise before the wire"
+            exit 1
+          }
+          strip src/pages/usage.tsx | grep -q 'lowerQuota(' || {
+            echo "::error::the usage screen no longer offers the lowering control"
+            exit 1
+          }
+          echo "ok: lowering only, refused in the client and again by the service"
+
+      - name: A path id is never sent malformed
+        # A malformed :id reaches a uuid column on every route that predates requireUuid and comes
+        # back as 500 internal rather than 400 — devplatform/src/server.ts:1632-1636 says so and
+        # declines to change eleven shipped status codes in one commit. This console's addresses
+        # ARE those ids, so a typo must not read as an outage. Asserted here as well as in the
+        # suite, because deleting the test would otherwise delete the rule.
+        run: |
+          set -uo pipefail
+          strip() { perl -0pe 's{/\*.*?\*/}{}gs; s{^\s*//.*$}{}gm' "$1"; }
+          guarded=$(strip src/lib/devplatform.ts | grep -c 'assertUuid(' || true)
+          # One definition plus one call per id-taking wrapper. Below twenty means a wrapper was
+          # added without the guard, which is the way this comes back.
+          if [ "${guarded:-0}" -lt 20 ]; then
+            echo "::error::only ${guarded:-0} uses of assertUuid in src/lib/devplatform.ts; every wrapper taking an id needs one"
+            exit 1
+          fi
+          # And no page interpolates a raw id into a path of its own — that would go round the
+          # guard entirely. The broader form of this rule is the /v1 check above.
+          if strip src/pages/*.tsx | grep -nE '/v1/[a-z-]+/\$\{'; then
+            echo "::error::a page builds a path with an unguarded id"
+            exit 1
+          fi
+          echo "ok: ${guarded} guarded id uses, and no page builds its own path"
 
       - name: Every design token this stylesheet names is a real one
         # test/tokens.test.ts proves it against the sibling checkout. This is the half that runs

@@ -2,38 +2,44 @@
  * Enrolling an identity organisation, and one enrolled organisation's projects.
  *
  * ══════════════════════════════════════════════════════════════════════════════════════════════
- * ENROLMENT IS ALSO THE ONLY LOOKUP, AND THAT IS THE FINDING THIS SCREEN IS BUILT AROUND.
+ * THIS SCREEN NO LONGER MUTATES IN ORDER TO READ.
  *
- * `devplatform` serves no `GET /v1/organisations` and no route that resolves an identity
- * organisation id to a developer one. `GET /v1/organisations/:id` wants the DEVELOPER id, which a
- * console that has never enrolled has no way to learn — `findOrgByIdentityId`
- * (`devplatform/src/orgs.ts:162`) exists and is called only by the event inbox
- * (`devplatform/src/server.ts:1227`).
+ * Until `micro-devplatform@e13c154` the service served no route that resolved an identity
+ * organisation to its developer-platform enrolment: `GET /v1/organisations/:id` wants the
+ * DEVELOPER id, which a console that has never enrolled has no way to learn, and
+ * `findOrgByIdentityId` (`devplatform/src/orgs.ts:162`) was reachable only from the event inbox
+ * (`devplatform/src/server.ts:1523`). So this screen drew ONE control meaning both "enrol" and
+ * "open", and answered "which organisation am I in?" by re-POSTing the idempotent enrolment. That
+ * was harmless — `on conflict do nothing` really is idempotent — and it was still a write issued
+ * to ask a question, which is one keystroke from a write issued by mistake.
  *
- * What makes that survivable rather than fatal is that `POST /v1/organisations` is idempotent on
- * `identity_org_id` by construction: `on conflict do nothing` followed by a read
- * (`devplatform/src/orgs.ts:126-141`). Posting it a second time RETURNS the existing row rather
- * than creating or failing. So this screen presents one control that means both "enrol" and "open",
- * and says which of the two happened afterwards rather than guessing beforehand.
+ * `GET /v1/organisations?identityOrgId=…` (`devplatform/src/server.ts:784`) is the read, and this
+ * screen now uses it. Each card asks the question first and then draws ONE of two things:
  *
- * The consequence a developer must be told, because it is surprising: **`name` and `slug` are only
- * used on the first enrolment.** A second call with a different name returns the original row
- * unchanged, because `do nothing` did nothing. This is not a rename form.
+ *   ENROLLED      a link. No form, because there is nothing to fill in — `name` and `slug` are
+ *                 ignored on a second enrolment, so a form here would be a rename control that
+ *                 silently renames nothing.
+ *   NOT ENROLLED  the form. It is the first enrolment, so the fields are the ones that count.
+ *
+ * That distinction is only drawable because an empty answer is a `200` with `[]` rather than a 404
+ * (`devplatform/src/server.ts:796`): "you are a member of this company and it has no developer
+ * platform presence yet" is an enrolment button, whereas a 404 would be a dead end.
  * ══════════════════════════════════════════════════════════════════════════════════════════════
  *
  * The list of identity organisations comes from `/auth/me` — `organisations`, with the caller's
  * role in each (`identity/src/organisations.ts:148-159`). The role is used to LABEL only.
  * `devplatform` re-asks identity for it on the request and refuses anything below admin
- * (`devplatform/src/server.ts:644-645`); a browser deciding it would be a browser deciding its own
+ * (`devplatform/src/server.ts:752-753`); a browser deciding it would be a browser deciding its own
  * authority.
  */
 import { useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
-import { Empty, Failed, Note } from '../components/states.tsx'
+import { Empty, Failed, Loading, Note } from '../components/states.tsx'
 import { Identifier } from '../components/tone.tsx'
 import { useMutation } from '../lib/mutation.ts'
+import { useResource } from '../lib/resource.ts'
 import { mayEnrol, useSession, type IdentityOrg } from '../lib/auth.tsx'
-import { enrolOrganisation } from '../lib/devplatform.ts'
+import { enrolOrganisation, resolveOrganisation } from '../lib/devplatform.ts'
 
 /** Slug rules, copied from `devplatform/src/orgs.ts:53` so the field can refuse before the wire. */
 const SLUG = /^[a-z0-9][a-z0-9-]{1,62}[a-z0-9]$/
@@ -75,22 +81,74 @@ export function OrganisationsPage() {
       )}
 
       <Note>
-        Enrolling the same organisation twice is not an error and does not create a second one — the
-        service keys the enrolment on the organisation itself and returns the one that already
-        exists. That also means the name and slug below are only used the first time.
+        An organisation that is already enrolled shows a link rather than a form. Enrolling names it
+        once and never again — the service keys the enrolment on the organisation itself and a second
+        call returns the existing row unchanged, so a form here would be a rename control that
+        renames nothing.
       </Note>
     </section>
   )
 }
 
 /**
- * One identity organisation, and the control that enrols it or opens it.
+ * One identity organisation: ask whether it is enrolled, then draw the link or the form.
+ *
+ * ── ONE READ PER CARD, AND IT IS A READ ───────────────────────────────────────────────────────
+ *
+ * `resolveOrganisation` is `GET /v1/organisations?identityOrgId=…`. It answers `200` with an empty
+ * list for an organisation this reader is a member of that has never been enrolled, so an empty
+ * answer is a state to render rather than an error to report — which is why `count` below is 1
+ * unconditionally: the resource is "the answer", and the answer being empty is `enrolled === null`,
+ * not the `empty` state.
+ *
+ * A FAILURE here draws neither. Falling back to the form on an error would offer to create
+ * something that may already exist, and the enrolment is idempotent so the mistake would be
+ * survivable and silent — which is the shape of thing this repository keeps having to correct.
+ */
+function EnrolCard({ org }: { org: IdentityOrg }) {
+  const existing = useResource(
+    (signal) => resolveOrganisation(org.id, signal),
+    () => 1,
+    'Whether this organisation is enrolled could not be determined.',
+    [org.id],
+  )
+  const enrolled = existing.data?.organisations[0] ?? null
+
+  return (
+    <li className="dp-card">
+      <h2 className="dp-card__title">{org.name}</h2>
+      <p className="dp-card__meta">
+        Your role: <strong>{org.role}</strong> · <Identifier value={org.id} />
+      </p>
+
+      {existing.state === 'loading' && <Loading label="Checking the enrolment" />}
+      {(existing.state === 'failed' || existing.state === 'forbidden') && existing.error && (
+        <Failed notice={existing.error} onRetry={existing.reload} />
+      )}
+      {existing.state !== 'loading' && existing.error === null && (
+        enrolled ? (
+          <p className="dp-para">
+            Enrolled as <Identifier value={enrolled.slug} /> ·{' '}
+            <Link to={`/organisations/${encodeURIComponent(enrolled.id)}`}>
+              Open {enrolled.name}
+            </Link>
+          </p>
+        ) : (
+          <EnrolForm org={org} />
+        )
+      )}
+    </li>
+  )
+}
+
+/**
+ * The first enrolment, and only the first.
  *
  * The control is offered even when the role is below admin, and it is DISABLED with the reason
  * shown. Hiding it would leave a member of an organisation unable to see why the console shows them
  * nothing; a refusal they can read is a refusal they can act on by asking an owner.
  */
-function EnrolCard({ org }: { org: IdentityOrg }) {
+function EnrolForm({ org }: { org: IdentityOrg }) {
   const navigate = useNavigate()
   const [name, setName] = useState(org.name)
   const [slug, setSlug] = useState(suggestSlug(org.slug || org.name))
@@ -102,12 +160,7 @@ function EnrolCard({ org }: { org: IdentityOrg }) {
   const slugOk = SLUG.test(slug)
 
   return (
-    <li className="dp-card">
-      <h2 className="dp-card__title">{org.name}</h2>
-      <p className="dp-card__meta">
-        Your role: <strong>{org.role}</strong> · <Identifier value={org.id} />
-      </p>
-
+    <>
       {!allowed && (
         <Note tone="warn">
           Only an owner or an admin of an organisation may enrol it. Ask one of them to open this
@@ -145,7 +198,7 @@ function EnrolCard({ org }: { org: IdentityOrg }) {
           />
           <span className="dp-field__help" id={`slug-help-${org.id}`}>
             3 to 64 characters of lowercase letters, digits and hyphens, starting and ending with a
-            letter or digit. Used only on the first enrolment.
+            letter or digit. Used only on this first enrolment.
           </span>
         </label>
         <button
@@ -153,12 +206,12 @@ function EnrolCard({ org }: { org: IdentityOrg }) {
           className="cf-btn cf-btn--primary"
           disabled={!allowed || enrol.busy || !slugOk}
         >
-          {enrol.busy ? 'Working…' : 'Enrol or open'}
+          {enrol.busy ? 'Enrolling…' : 'Enrol'}
         </button>
       </form>
 
       {enrol.error && <Failed notice={enrol.error} title="That was not enrolled" />}
-    </li>
+    </>
   )
 }
 

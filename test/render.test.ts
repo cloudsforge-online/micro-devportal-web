@@ -7,7 +7,7 @@
  * It cannot be. `api_keys` has no column a secret could be read back from — `secret_algo`,
  * `secret_salt` and `secret_hash` are a one-way function of the key, and `api_keys_slow_kdf_only`
  * refuses any row whose recorded algorithm is not a scrypt encoding
- * (`devplatform/src/migrations.ts:189`); `oauth_clients` carries the same constraint (`:229`).
+ * (`devplatform/src/migrations.ts:204`); `oauth_clients` carries the same constraint (`:244`).
  * There is no reveal route, no support tool, and no operator with a way round it.
  *
  * So a sentence like "you can find it later in your dashboard", "we have emailed it to you" or
@@ -191,10 +191,40 @@ describe('the pages say the things they must', () => {
     assert.match(codeOf(read('src/pages/keys.tsx')), /cannot be undone/i)
   })
 
-  it('the webhook screen says a disabled endpoint cannot be re-enabled', () => {
-    // The service passes `true` unconditionally and has no route that re-enables one. A screen that
-    // drew a toggle would be promising a way back that does not exist.
-    assert.match(codeOf(read('src/pages/webhooks.tsx')), /no route that re-enables one/i)
+  it('the webhook screen offers Enable, and draws it as a verb rather than a switch', () => {
+    // ══════════════════════════════════════════════════════════════════════════════════════════
+    // THIS CHECK USED TO ASSERT THE OPPOSITE, AND IT WAS RIGHT AT THE TIME.
+    //
+    // It required the screen to say "no route that re-enables one", because there was none: the
+    // only way back was to delete the endpoint, which mints a new signing secret and drops the
+    // delivery history. That was reported and `POST /v1/webhook-endpoints/:id/enable` closed it,
+    // so the check was inverted rather than relaxed — the screen must now offer the control.
+    //
+    // The service made it two routes rather than one boolean deliberately: "a client that
+    // inverted the flag would silently do the opposite of what its operator intended". A checkbox
+    // or a `checked=` toggle here would be exactly that client, so the shape is asserted too.
+    // ══════════════════════════════════════════════════════════════════════════════════════════
+    const webhooks = codeOf(read('src/pages/webhooks.tsx'))
+    assert.match(webhooks, /enableEndpoint\(/, 'the screen cannot re-enable an endpoint')
+    assert.match(webhooks, /'Enabling…' : 'Enable'/, 'there is no Enable control')
+    assert.doesNotMatch(
+      webhooks,
+      /type="checkbox"[\s\S]{0,400}disabl/i,
+      'disable and enable are two verbs on this service; a toggle can be inverted',
+    )
+    // And the sentence that stops somebody waiting for a backlog that was never queued.
+    assert.match(
+      webhooks,
+      /were never queued for it/i,
+      'the screen does not say that events produced while disabled are not replayed',
+    )
+  })
+
+  it('the webhook screen no longer claims a disabled endpoint is stuck', () => {
+    // The mirror of the above, and the reason it is separate: deleting a stale warning is easy to
+    // forget when adding the control that makes it stale, and a screen carrying both is worse than
+    // one carrying neither.
+    assert.doesNotMatch(codeOf(read('src/pages/webhooks.tsx')), /no route that re-enables one/i)
   })
 
   it('the webhook screen prints the rotation overlap from the RESPONSE, not a constant', () => {
@@ -203,12 +233,32 @@ describe('the pages say the things they must', () => {
     assert.doesNotMatch(webhooks, /1440|1_440/, 'the overlap window is hard-coded')
   })
 
-  it('the usage screen offers no control that raises a quota', () => {
-    // `PUT /v1/projects/:id/quotas` is `project:write` and accepts any number with no ceiling. A
-    // self-service control here would make the platform's limit advisory.
+  it('the usage screen lowers a quota and offers nothing that raises one', () => {
+    // ══════════════════════════════════════════════════════════════════════════════════════════
+    // THE ROUTE CHANGED UNDER THIS CHECK; THE RULE DID NOT.
+    //
+    // `PUT /v1/projects/:id/quotas` used to be plain `project:write` with no ceiling — the party
+    // the limit binds chose the limit — so this screen drew nothing at all. The direction is now
+    // the authority upstream: lowering is `project:write`, raising and creating are an operator's.
+    // So the control exists, and the rule it must obey is unchanged: nothing here raises a limit.
+    //
+    // The old check forbade `method: 'PUT'` anywhere in the file, which would now forbid the
+    // lowering control as well. That is a check that has stopped matching the rule it was written
+    // for, so it is replaced rather than deleted: the request lives in src/lib/devplatform.ts and
+    // no page assembles one, which `no page calls the API directly` below already proves.
+    // ══════════════════════════════════════════════════════════════════════════════════════════
     const usage = codeOf(read('src/pages/usage.tsx'))
-    assert.doesNotMatch(usage, /setQuota|putQuota|method: 'PUT'/)
-    assert.match(usage, /Raising a limit is not something this console does/)
+    assert.match(usage, /lowerQuota\(/, 'the screen cannot lower a limit')
+    assert.doesNotMatch(usage, /setQuota|putQuota|raiseLimit/, 'a raise primitive is named here')
+    assert.match(
+      usage,
+      /Raising a limit is not something this console does/,
+      'the screen does not say who may raise a limit',
+    )
+    // The input is bounded BELOW the current value. `max` is advisory in a browser, which is why
+    // `lowerQuota` refuses a raise as well and the service refuses it a third time — but a field
+    // that let a developer type a bigger number without a hint is a field that invites the 403.
+    assert.match(usage, /max=\{quota\.maxUnits - 1\}/, 'the field does not cap itself below the limit')
   })
 
   it('the platform page renders the known gaps as findings rather than as a roadmap', () => {

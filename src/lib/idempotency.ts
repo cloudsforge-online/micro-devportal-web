@@ -7,19 +7,19 @@
  * That split is a fact about `devplatform`, and it is the fact a client copied from a sibling gets
  * wrong in one direction or the other. `micro-trade` requires the header on EVERY mutating route;
  * `micro-mint` reads it nowhere. This service does neither: `withIdempotentRoute` throws when the
- * header is missing or outside 8–200 characters (`devplatform/src/server.ts:1293-1298`), and it
+ * header is missing or outside 8–200 characters (`devplatform/src/server.ts:1589-1594`), and it
  * wraps exactly these five —
  *
- *   `POST /v1/projects`                            `devplatform/src/server.ts:675`
- *   `POST /v1/projects/:id/keys`                   `devplatform/src/server.ts:743`
- *   `POST /v1/projects/:id/webhook-endpoints`      `devplatform/src/server.ts:884`
- *   `POST /v1/webhook-endpoints/:id/rotate-secret` `devplatform/src/server.ts:923`
- *   `POST /v1/projects/:id/oauth-clients`          `devplatform/src/server.ts:971`
+ *   `POST /v1/projects`                            `devplatform/src/server.ts:819`
+ *   `POST /v1/projects/:id/keys`                   `devplatform/src/server.ts:887`
+ *   `POST /v1/projects/:id/webhook-endpoints`      `devplatform/src/server.ts:1091`
+ *   `POST /v1/webhook-endpoints/:id/rotate-secret` `devplatform/src/server.ts:1130`
+ *   `POST /v1/projects/:id/oauth-clients`          `devplatform/src/server.ts:1212`
  *
  * — while eleven other mutations are exempt, each naming the mechanism that makes a retry safe
  * without a wrapper: a natural key with `on conflict do nothing`, an upsert, a state transition
  * claimed with a WHERE clause, or a DELETE. The list is
- * `devplatform/src/routeidempotency.test.ts:34-62`, and the service has a source-level test that
+ * `devplatform/src/routeidempotency.test.ts:34-68`, and the service has a source-level test that
  * fails when a route is added without either a wrapper or an entry — because the defect is an
  * OMISSION, and an omission has no behaviour to test.
  *
@@ -32,7 +32,7 @@
  *
  * ── Why it matters most here, of anywhere in the estate ───────────────────────────────────────
  *
- * `devplatform/src/server.ts:727-729`: a double-clicked "Create key" without the wrapper "mints
+ * `devplatform/src/server.ts:871-873`: a double-clicked "Create key" without the wrapper "mints
  * two credentials, and the second is one the developer never sees and therefore never revokes — a
  * live key with no owner." That is the worst artefact this whole product could produce, and the
  * header is what prevents it.
@@ -43,13 +43,13 @@
  * `devplatform/src/idempotency.ts:84`) and then makes three different decisions:
  *
  *   * same key, same request, work committed → the stored response is REPLAYED, `200` with
- *     `replayed: true` (`devplatform/src/server.ts:1313-1318`). **The secret is NOT in the stored
+ *     `replayed: true` (`devplatform/src/server.ts:1609-1614`). **The secret is NOT in the stored
  *     response**, so a replay answers `secretKey: null`, which is the behaviour that makes the
- *     replay safe (`devplatform/src/server.ts:731-734`).
+ *     replay safe (`devplatform/src/server.ts:875-878`).
  *   * same key, **different** request → `IdempotencyKeyReuseError`, a 409 `idempotency_key_reuse`
- *     (`devplatform/src/server.ts:404-406`).
+ *     (`devplatform/src/server.ts:445-447`).
  *   * same key, claim exists, no response yet → `IdempotencyInFlightError`, a 409
- *     `idempotency_in_flight` (`devplatform/src/server.ts:407-409`). Retry shortly, with the SAME
+ *     `idempotency_in_flight` (`devplatform/src/server.ts:448-450`). Retry shortly, with the SAME
  *     key.
  *
  * So a key is not "one per click" and it is not "one per form" either. It belongs to an ATTEMPT AT
@@ -63,11 +63,11 @@
  */
 import { ApiError } from './api.ts'
 
-/** How the service spells the two idempotency refusals. `devplatform/src/server.ts:405`, `:408`. */
+/** How the service spells the two idempotency refusals. `devplatform/src/server.ts:446`, `:449`. */
 export const IN_FLIGHT_CODE = 'idempotency_in_flight'
 export const KEY_REUSE_CODE = 'idempotency_key_reuse'
 
-/** The header name, spelled as the service reads it — `devplatform/src/server.ts:177`. */
+/** The header name, spelled as the service reads it — `devplatform/src/server.ts:218`. */
 export const IDEMPOTENCY_HEADER = 'idempotency-key'
 
 /**
@@ -75,11 +75,11 @@ export const IDEMPOTENCY_HEADER = 'idempotency-key'
  *
  * Prefixed so an operator reading `idempotency_keys.client_key` can tell a browser's key from a
  * service's without joining anything. The stored key is namespaced by the principal and the route
- * anyway (`devplatform/src/server.ts:1299-1303`), so this prefix is for humans, not for collision
+ * anyway (`devplatform/src/server.ts:1595-1599`), so this prefix is for humans, not for collision
  * avoidance.
  *
  * Length is 49 characters, comfortably inside the service's 8–200 window
- * (`devplatform/src/server.ts:178`).
+ * (`devplatform/src/server.ts:219`).
  */
 export function newIdempotencyKey(): string {
   return `cf-devportal-web-${uuid()}`
@@ -116,7 +116,7 @@ export function idempotently(key: string): Record<string, string> {
  *
  *   * a transport failure (`status: 0`) — the request may have been received and its answer lost;
  *   * any 5xx, including this service's `503 membership_unavailable`
- *     (`devplatform/src/server.ts:386-390`) and `503 verifier_unavailable` (`:400-403`), both of
+ *     (`devplatform/src/server.ts:427-431`) and `503 verifier_unavailable` (`:441-444`), both of
  *     which can fire after work has partially committed;
  *   * `idempotency_in_flight`, which is the service explicitly saying "the original is still
  *     committing; come back with this key".

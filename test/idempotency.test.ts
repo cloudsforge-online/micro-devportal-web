@@ -21,7 +21,7 @@ import {
 
 describe('a minted key', () => {
   it('is inside the service’s 8–200 character window', () => {
-    // `SAFE_IDEMPOTENCY_KEY` is /^[A-Za-z0-9._:-]{8,200}$/ — `devplatform/src/server.ts:178`.
+    // `SAFE_IDEMPOTENCY_KEY` is /^[A-Za-z0-9._:-]{8,200}$/ — `devplatform/src/server.ts:219`.
     const key = newIdempotencyKey()
     assert.ok(key.length >= 8 && key.length <= 200, `${key.length} characters`)
   })

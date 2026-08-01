@@ -1,18 +1,18 @@
 /**
  * OAuth clients: register one, list them, revoke one.
  *
- * Three routes: `POST /v1/projects/:id/oauth-clients` (`devplatform/src/server.ts:966`, wrapped, so
- * an `Idempotency-Key` is required), `GET …` (`:1003`) and `DELETE /v1/oauth-clients/:id` (`:1008`).
+ * Three routes: `POST /v1/projects/:id/oauth-clients` (`devplatform/src/server.ts:1207`, wrapped, so
+ * an `Idempotency-Key` is required), `GET …` (`:1244`) and `DELETE /v1/oauth-clients/:id` (`:1249`).
  *
  * The client secret is shown once and there is no column it could be read back from: it is hashed
  * exactly as an API key's is, under the same `oauth_clients_slow_kdf_only` constraint
- * (`devplatform/src/migrations.ts:229`).
+ * (`devplatform/src/migrations.ts:244`).
  *
  * ── The redirect URIs are the part worth being strict about ───────────────────────────────────
  *
  * Absolute https, or http on loopback for development, with no fragment and no wildcard
  * (`devplatform/src/oauth.ts:102-116`), and the schema says the same in a CHECK
- * (`devplatform/src/migrations.ts:236-240`). The service's own comment names the stake: a wildcard
+ * (`devplatform/src/migrations.ts:251-255`). The service's own comment names the stake: a wildcard
  * or relative redirect "is an open redirect that hands an authorisation code to whoever asked for
  * it, and it is the single most exploited misconfiguration in OAuth deployments". This screen says
  * that on the field rather than letting a developer discover it from a 400.
@@ -20,7 +20,7 @@
  * ── What this screen deliberately does not claim ──────────────────────────────────────────────
  *
  * Registering a client here does not make an authorisation flow work. `POST /internal/oauth/verify`
- * (`devplatform/src/server.ts:1096`) is the check identity's token endpoint WOULD call, and nothing
+ * (`devplatform/src/server.ts:1392`) is the check identity's token endpoint WOULD call, and nothing
  * calls it today. So the copy says a client can be registered and its secret verified, and does not
  * describe an end-to-end flow that has not been wired.
  */
@@ -241,7 +241,7 @@ function NewClient({ projectId, onRegistered }: { projectId: string; onRegistere
  * Revoke a client.
  *
  * `revokeClient` uses `coalesce(revoked_at, now())`, so a second call preserves the first
- * revocation's time (`devplatform/src/routeidempotency.test.ts:57-58`). The row survives, which is
+ * revocation's time (`devplatform/src/routeidempotency.test.ts:63-64`). The row survives, which is
  * why the list above shows revoked clients rather than dropping them.
  */
 function RevokeClient({ id, onRevoked }: { id: string; onRevoked: () => void }) {

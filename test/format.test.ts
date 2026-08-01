@@ -19,12 +19,13 @@ import {
   quotaTone,
   when,
 } from '../src/lib/format.ts'
+import { APPLICATION_STATUSES } from '../src/lib/devplatform.ts'
 
 const NOW = new Date('2026-08-01T12:00:00.000Z')
 
 describe('the two sentences about secrets', () => {
   it('the API key one says scrypt and says it cannot be recovered', () => {
-    // Verbatim from `devplatform/src/server.ts:783`; `test/devplatform.test.ts` proves the two are
+    // Verbatim from `devplatform/src/server.ts:927`; `test/devplatform.test.ts` proves the two are
     // still identical against the real service.
     assert.match(SHOWN_ONCE, /only time this secret is shown/i)
     assert.match(SHOWN_ONCE, /scrypt/)
@@ -33,7 +34,7 @@ describe('the two sentences about secrets', () => {
 
   it('the webhook one does NOT claim to be hashed, because that secret is stored', () => {
     // `webhook_secrets` holds plaintext, because signing a delivery requires the secret itself
-    // (`devplatform/src/migrations.ts:44-51`). Saying it is hashed would be false, and this product
+    // (`devplatform/src/migrations.ts:59-66`). Saying it is hashed would be false, and this product
     // does not get to be vague about which of its secrets are recoverable.
     assert.doesNotMatch(WEBHOOK_SECRET_NOTE, /scrypt|hashed/i)
     assert.match(WEBHOOK_SECRET_NOTE, /only time this secret is shown/i)
@@ -110,19 +111,48 @@ describe('the state of a delivery', () => {
 })
 
 describe('the state of an application listing', () => {
-  it('renders all four statuses the service can hold', () => {
+  it('renders all five statuses the service can hold, and knows there are five', () => {
+    // The count is asserted against the SERVICE'S OWN list rather than written here, so a sixth
+    // status added upstream fails this rather than falling silently into the draft default.
+    // `rejected` arrived with the operator route and is the one that had to be added by hand.
+    assert.deepEqual([...APPLICATION_STATUSES], [
+      'draft',
+      'in_review',
+      'listed',
+      'rejected',
+      'delisted',
+    ])
     assert.equal(applicationState('draft').word, 'Draft')
     assert.equal(applicationState('in_review').word, 'In review')
     assert.equal(applicationState('listed').word, 'Listed')
+    assert.equal(applicationState('rejected').word, 'Rejected')
     assert.equal(applicationState('delisted').word, 'Delisted')
+  })
+
+  it('gives every status a distinct word, so the badge is never ambiguous', () => {
+    const words = APPLICATION_STATUSES.map((status) => applicationState(status).word)
+    assert.equal(new Set(words).size, words.length, `two statuses share a badge: ${words.join(', ')}`)
   })
 
   it('falls back to draft for anything it does not recognise', () => {
     assert.equal(applicationState('something-new').word, 'Draft')
   })
 
-  it('says on the in_review badge that nothing can approve it', () => {
-    assert.match(applicationState('in_review').meaning, /nothing in this estate can approve it/i)
+  it('says on the in_review badge that a person decides it', () => {
+    // It used to say nothing in the estate could approve it, which was true and was reported.
+    // `PUT /v1/projects/:id/application/status` closed that; what is left is a wait for a human,
+    // and the copy has to be the second thing rather than the first.
+    const meaning = applicationState('in_review').meaning
+    assert.match(meaning, /reviewer/i)
+    assert.doesNotMatch(meaning, /nothing (in this estate )?can approve/i)
+  })
+
+  it('says on the rejected badge that it is not the end of the road', () => {
+    // `submitForReview` accepts `rejected` as a source, so a declined listing can be edited and
+    // sent back. Copy that read as final would stop somebody doing what the service allows.
+    assert.match(applicationState('rejected').meaning, /again|not final/i)
+    // And it is NOT worded as a takedown: `delisted` is the one that was public.
+    assert.doesNotMatch(applicationState('rejected').meaning, /removed from the public directory/i)
   })
 })
 
@@ -173,7 +203,7 @@ describe('the small formatters', () => {
   })
 
   it('recognises the display string shape the schema constrains', () => {
-    // `api_keys_display_shape` — `devplatform/src/migrations.ts:184`.
+    // `api_keys_display_shape` — `devplatform/src/migrations.ts:199`.
     assert.equal(isDisplayString('cfk_live_abcdefghijklmnop'), true)
     assert.equal(isDisplayString('cfk_test_abcdefghijklmnop'), true)
     assert.equal(isDisplayString('cfk_prod_abcdefghijklmnop'), false)

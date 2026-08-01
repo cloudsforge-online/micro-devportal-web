@@ -2,25 +2,27 @@
  * The public application directory, and one listing.
  *
  * Both routes behind this screen are PUBLIC and read no credential: `GET /v1/apps`
- * (`devplatform/src/server.ts:1022`) and `GET /v1/apps/:slug` (`devplatform/src/server.ts:1027`).
+ * (`devplatform/src/server.ts:1263`) and `GET /v1/apps/:slug` (`devplatform/src/server.ts:1291`).
  * They are outside the session gate for that reason — the directory is the one part of this product
  * aimed at somebody who is not a developer.
  *
  * **Only `listed` applications can appear**, and the filter is inside the service's own query
- * rather than applied by a caller (`devplatform/src/applications.ts:201-204`): "a filter the caller
+ * rather than applied by a caller (`devplatform/src/applications.ts:323-326`): "a filter the caller
  * has to remember is a filter that will one day be forgotten, and the consequence here is a draft
  * listing … served to the public."
  *
- * So an EMPTY directory is a true 200 and not a loading state. Today it is also the expected state:
- * nothing in this estate can move a listing from `in_review` to `listed` — see `REVIEW_GAP` in
- * src/lib/devplatform.ts — so the screen says that rather than drawing a blank page.
+ * So an EMPTY directory is a true 200 and not a loading state, and the empty copy says which of
+ * the two it is. It used to say something stronger — that nothing in the estate could move a
+ * listing from `in_review` to `listed`, so the directory could never fill. That was true and was
+ * reported; `PUT /v1/projects/:id/application/status`
+ * (`devplatform/src/server.ts:1344`) closed it, so the sentence is gone rather than softened.
  */
 import { Link, useParams } from 'react-router-dom'
 import { Empty, Failed, Loading, Note } from '../components/states.tsx'
 import { StateBadge } from '../components/tone.tsx'
 import { useResource } from '../lib/resource.ts'
 import { applicationState, when } from '../lib/format.ts'
-import { getApplicationBySlug, listDirectory, REVIEW_GAP } from '../lib/devplatform.ts'
+import { getApplicationBySlug, listDirectory } from '../lib/devplatform.ts'
 
 export function DirectoryPage() {
   const directory = useResource(
@@ -46,10 +48,7 @@ export function DirectoryPage() {
       {directory.state === 'empty' && (
         <Empty
           title="Nothing is listed yet"
-          hint={
-            'The service answered with an empty directory — this page has finished loading. ' +
-            REVIEW_GAP.finding
-          }
+          hint="The service answered with an empty directory — this page has finished loading, and there is nothing to show. Only applications a CloudsForge reviewer has approved appear here."
         />
       )}
       {directory.state === 'ok' && directory.data && (
@@ -76,7 +75,7 @@ export function DirectoryPage() {
  *
  * A **404 here means "there is no LISTED application at that slug"** and never "you may not see
  * it": the status filter is in `findListedApplication`'s own query
- * (`devplatform/src/applications.ts:181-187`), so a draft belonging to the reader's own project
+ * (`devplatform/src/applications.ts:303-309`), so a draft belonging to the reader's own project
  * answers the same 404 as a slug that was never used. Rendering it as a permission problem would
  * send somebody to ask for access they already have.
  */

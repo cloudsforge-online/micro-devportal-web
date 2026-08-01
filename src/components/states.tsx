@@ -99,9 +99,9 @@ export function Failed({
  *
  * **On this surface a 403 is rarer than a 404, and that is worth knowing before diagnosing one.**
  * `devplatform` answers 404 rather than 403 for an organisation or a project the caller may not see
- * (`devplatform/src/server.ts:520`, `:546`), precisely so ids are not enumerable. So a 403 here is
+ * (`devplatform/src/server.ts:628`, `:654`), precisely so ids are not enumerable. So a 403 here is
  * almost always a KEY presenting itself without the scope it needs
- * (`devplatform/src/server.ts:526`), or a user token on a route that wants an API key (`:481`) — a
+ * (`devplatform/src/server.ts:634`), or a user token on a route that wants an API key (`:574`) — a
  * misconfiguration rather than a membership problem, which is why the copy says what it says.
  */
 export function Forbidden({

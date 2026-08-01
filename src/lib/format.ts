@@ -10,7 +10,7 @@
 /**
  * THE SENTENCE. It is the service's own, verbatim.
  *
- * `devplatform/src/server.ts:783` attaches exactly this string as `note` on the response that mints
+ * `devplatform/src/server.ts:927` attaches exactly this string as `note` on the response that mints
  * a key. It is duplicated here so a screen can say it BEFORE the request is sent — a warning that
  * only appears after the secret does is a warning nobody read in time — and
  * `test/devplatform.test.ts` asserts the two strings are still identical, which is what stops this
@@ -22,7 +22,7 @@ export const SHOWN_ONCE =
 /**
  * What a webhook signing secret is, which is NOT the same claim.
  *
- * `webhook_secrets` stores plaintext, and `devplatform/src/migrations.ts:44-51` says why in the
+ * `webhook_secrets` stores plaintext, and `devplatform/src/migrations.ts:59-66` says why in the
  * schema itself: "HMAC is not a one-way function of an input we do not have: signing a delivery
  * requires the secret itself." It is still shown once — no route returns it afterwards
  * (`devplatform/src/webhooks.ts:147`) — but saying it is hashed would be false, and this product
@@ -88,7 +88,7 @@ export function keyState(key: {
  *
  * `abandoned` is the one worth being loud about. A delivery past its attempt ceiling is retained
  * rather than deleted "because the row is the only record that a customer was sent an event and
- * never took it" (`devplatform/src/server.ts:248-253`), so it will sit in this list for ever
+ * never took it" (`devplatform/src/server.ts:289-294`), so it will sit in this list for ever
  * looking like a pending one unless the screen distinguishes them. The ceiling is configurable
  * (`DEVPLATFORM_WEBHOOK_MAX_ATTEMPTS`, default 8 — `devplatform/src/env.ts:215`) and is NOT on the
  * wire, so this function takes it rather than assuming it.
@@ -123,7 +123,15 @@ export function deliveryState(
   }
 }
 
-/** `devplatform/src/applications.ts:23`. Four statuses, and the app must render all four. */
+/**
+ * `devplatform/src/applications.ts:41-47`. **Five statuses, and the app must render all five.**
+ *
+ * `rejected` arrived with the operator route and is deliberately NOT a synonym for `delisted`:
+ * delisted was public and was taken down, rejected never went up. The wording matters more than
+ * the badge — `submitForReview` accepts `rejected` as a source
+ * (`devplatform/src/applications.ts:80-87`), so this is a state a developer can leave, and copy
+ * that read like a final refusal would stop somebody trying again when they are allowed to.
+ */
 export function applicationState(status: string): Tone {
   switch (status) {
     case 'listed':
@@ -133,7 +141,14 @@ export function applicationState(status: string): Tone {
         tone: 'warn',
         glyph: '◐',
         word: 'In review',
-        meaning: 'Submitted. Nothing in this estate can approve it yet — see the note on this page.',
+        meaning: 'Submitted, and waiting for a CloudsForge reviewer to decide.',
+      }
+    case 'rejected':
+      return {
+        tone: 'warn',
+        glyph: '◌',
+        word: 'Rejected',
+        meaning: 'A reviewer declined this listing. Edit it and submit it again — this is not final.',
       }
     case 'delisted':
       return {
@@ -207,7 +222,7 @@ export function percent(used: number, limit: number): string {
  * The prefix of a `cfk_…` display string, which is the part that is safe everywhere.
  *
  * `display` is `cfk_<environment>_<lookup>` and carries no secret at all — the schema constrains
- * it to exactly that shape (`devplatform/src/migrations.ts:184`). It is what a revocation is quoted
+ * it to exactly that shape (`devplatform/src/migrations.ts:199`). It is what a revocation is quoted
  * by and what appears in a log, so it is rendered in full rather than masked. Masking it would
  * suggest there is something in it to hide, and would make the one string a developer needs to
  * quote at support the one string they cannot read.

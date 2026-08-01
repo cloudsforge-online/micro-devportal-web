@@ -9,7 +9,7 @@ clients and webhook endpoints, and shows usage against quotas. It is the browser
 > `api_keys` has no column a secret could be read back from: `secret_algo`, `secret_salt` and
 > `secret_hash` are a one-way function of the key, and the CHECK constraint
 > `api_keys_slow_kdf_only` refuses any row whose recorded algorithm is not a scrypt encoding
-> (`devplatform/src/migrations.ts:189`). `oauth_clients` carries the same constraint (`:229`).
+> (`devplatform/src/migrations.ts:204`). `oauth_clients` carries the same constraint (`:244`).
 > There is no reveal route, no support tool and no operator with a way round it. So this bundle
 > never draws a "show key" control, never offers to email one, and never says "contact support" —
 > and `test/render.test.ts` fails the build on nine phrasings that would imply otherwise.
@@ -38,50 +38,65 @@ Read out of `devplatform/src/server.ts`, one at a time, with the line each was v
 `test/devplatform.test.ts` reads that file and fails if any citation is not the line that registers
 the route; CI bends one and requires the suite to go red, so a green run is evidence.
 
+**Every line below moved at `micro-devplatform@e13c154`**, by between +108 and +296 — not by a
+constant. Each was re-derived from a diff-replayed line map rather than shifted by hand, and four
+routes appeared in the same commit; two of them close findings this repository reported.
+
 **How each authenticates matters more here than anywhere else in the estate.** There is no
 middleware — `handle()` dispatches straight into each route's closure
-(`devplatform/src/server.ts:373-418`) — and **not one of the 31 `/v1` handlers contains a literal
+(`devplatform/src/server.ts:414-459`) — and **not one of the 35 `/v1` handlers contains a literal
 `await authenticate(ctx, deps)`**. That call appears three times in the whole file and all three are
-inside helpers (`:473`, `:480`, `:516`). A boolean grep for the literal, which is what
-`micro-worlds-web`'s route test does, would declare all thirty-one routes public. So the table
+inside helpers (`:566`, `:573`, `:609`). A boolean grep for the literal, which is what
+`micro-worlds-web`'s route test does, would declare all thirty-five routes public. So the table
 records the mechanism, and the test matches the handler against that mechanism.
 
 | Method | Path | Authenticates | Idempotency-Key | Verified at |
 | --- | --- | --- | --- | --- |
-| `GET` | `/v1/scopes` | **none** | — | `devplatform/src/server.ts:604` |
-| `POST` | `/v1/organisations` | `authenticateUser` + `permits(role, ADMIN_ROLES)` | — | `:637` |
-| `GET` | `/v1/organisations/:id` | `authoriseOrg` read | — | `:655` |
-| `GET` | `/v1/organisations/:id/projects` | `authoriseOrg` read | — | `:663` |
-| `POST` | `/v1/projects` | `authoriseOrg` write | **required** | `:671` |
-| `GET` | `/v1/projects/:id` | `authoriseProject` read | — | `:694` |
-| `POST` | `/v1/projects/:id/service-accounts` | `authoriseProject` write | — | `:706` |
-| `GET` | `/v1/projects/:id/service-accounts` | `authoriseProject` read | — | `:717` |
-| `POST` | `/v1/projects/:id/keys` | `authoriseProject` write | **required** | `:736` |
-| `GET` | `/v1/projects/:id/keys` | `authoriseProject` read | — | `:790` |
-| `DELETE` | `/v1/keys/:id` | `authoriseProject` write | — | `:812` |
-| `GET` | `/v1/projects/:id/quotas` | `authoriseProject` read | — | `:856` |
-| `GET` | `/v1/projects/:id/usage` | `authoriseProject` read | — | `:866` |
-| `POST` | `/v1/projects/:id/webhook-endpoints` | `authoriseProject` write | **required** | `:876` |
-| `GET` | `/v1/projects/:id/webhook-endpoints` | `authoriseProject` read | — | `:907` |
-| `POST` | `/v1/webhook-endpoints/:id/rotate-secret` | `authoriseProject` write | **required** | `:916` |
-| `POST` | `/v1/webhook-endpoints/:id/disable` | `authoriseProject` write | — | `:937` |
-| `DELETE` | `/v1/webhook-endpoints/:id` | `authoriseProject` write | — | `:947` |
-| `GET` | `/v1/webhook-endpoints/:id/deliveries` | `authoriseProject` read | — | `:956` |
-| `POST` | `/v1/projects/:id/oauth-clients` | `authoriseProject` write | **required** | `:966` |
-| `GET` | `/v1/projects/:id/oauth-clients` | `authoriseProject` read | — | `:1003` |
-| `DELETE` | `/v1/oauth-clients/:id` | `authoriseProject` write | — | `:1008` |
-| `GET` | `/v1/apps` | **none** | — | `:1022` |
-| `GET` | `/v1/apps/:slug` | **none** | — | `:1027` |
-| `PUT` | `/v1/projects/:id/application` | `authoriseProject` write | — | `:1034` |
-| `GET` | `/v1/projects/:id/application` | `authoriseProject` read | — | `:1048` |
-| `POST` | `/v1/projects/:id/application/submit` | `authoriseProject` write | — | `:1056` |
+| `GET` | `/v1/scopes` | **none** | — | `devplatform/src/server.ts:712` |
+| `POST` | `/v1/organisations` | `authenticateUser` + `permits(role, ADMIN_ROLES)` | — | `:745` |
+| `GET` | `/v1/organisations` | `authenticateUser` + `permits(role, READ_ROLES)` | — | `:784` |
+| `GET` | `/v1/organisations/:id` | `authoriseOrg` read | — | `:799` |
+| `GET` | `/v1/organisations/:id/projects` | `authoriseOrg` read | — | `:807` |
+| `POST` | `/v1/projects` | `authoriseOrg` write | **required** | `:815` |
+| `GET` | `/v1/projects/:id` | `authoriseProject` read | — | `:838` |
+| `POST` | `/v1/projects/:id/service-accounts` | `authoriseProject` write | — | `:850` |
+| `GET` | `/v1/projects/:id/service-accounts` | `authoriseProject` read | — | `:861` |
+| `POST` | `/v1/projects/:id/keys` | `authoriseProject` write | **required** | `:880` |
+| `GET` | `/v1/projects/:id/keys` | `authoriseProject` read | — | `:934` |
+| `DELETE` | `/v1/keys/:id` | `authoriseProject` write | — | `:956` |
+| `PUT` | `/v1/projects/:id/quotas` | operator to raise or create, `authoriseProjectAs` write to lower | — | `:1011` |
+| `GET` | `/v1/projects/:id/quotas` | `authoriseProject` read | — | `:1063` |
+| `GET` | `/v1/projects/:id/usage` | `authoriseProject` read | — | `:1073` |
+| `POST` | `/v1/projects/:id/webhook-endpoints` | `authoriseProject` write | **required** | `:1083` |
+| `GET` | `/v1/projects/:id/webhook-endpoints` | `authoriseProject` read | — | `:1114` |
+| `POST` | `/v1/webhook-endpoints/:id/rotate-secret` | `authoriseProject` write | **required** | `:1123` |
+| `POST` | `/v1/webhook-endpoints/:id/disable` | `authoriseProject` write | — | `:1154` |
+| `POST` | `/v1/webhook-endpoints/:id/enable` | `authoriseProject` write | — | `:1178` |
+| `DELETE` | `/v1/webhook-endpoints/:id` | `authoriseProject` write | — | `:1188` |
+| `GET` | `/v1/webhook-endpoints/:id/deliveries` | `authoriseProject` read | — | `:1197` |
+| `POST` | `/v1/projects/:id/oauth-clients` | `authoriseProject` write | **required** | `:1207` |
+| `GET` | `/v1/projects/:id/oauth-clients` | `authoriseProject` read | — | `:1244` |
+| `DELETE` | `/v1/oauth-clients/:id` | `authoriseProject` write | — | `:1249` |
+| `GET` | `/v1/apps` | **none** | — | `:1263` |
+| `GET` | `/v1/apps/:slug` | **none** | — | `:1291` |
+| `PUT` | `/v1/projects/:id/application` | `authoriseProject` write | — | `:1298` |
+| `GET` | `/v1/projects/:id/application` | `authoriseProject` read | — | `:1312` |
+| `POST` | `/v1/projects/:id/application/submit` | `authoriseProject` write | — | `:1320` |
 
-`authoriseOrg` (`:537`) accepts a **user token only** (`:543`) and asks identity for the caller's
-role on every request. `authoriseProject` (`:510`) accepts a user token **or an API key**, and a key
+Three of those are new, and two exist because this repository reported the gap they close.
+`GET /v1/organisations` resolves an identity organisation to its enrolment, so the organisations
+screen no longer answers "which organisation am I in?" by re-POSTing the idempotent enrolment — a
+mutation used as a query. `POST /v1/webhook-endpoints/:id/enable` is the inverse of `/disable`,
+which had none: the only way back used to be deleting the endpoint, which mints a new signing
+secret and drops the delivery history, during the incident it was disabled for. And
+`PUT /v1/projects/:id/quotas` is no longer declined — see below.
+
+`authoriseOrg` (`:645`) accepts a **user token only** (`:651`) and asks identity for the caller's
+role on every request. `authoriseProject` (`:603`) accepts a user token **or an API key**, and a key
 may act only within its own project because the project id is read from the row rather than from the
-request (`:522-527`).
+request (`:630-635`).
 
-### The four routes this bundle declines, each for a stated reason
+### The five routes this bundle declines, each for a stated reason
 
 Declining is a first-class entry: `test/devplatform.test.ts` requires `SURFACE ∪ DECLINED` to cover
 every `/v1` route the service registers, so a route that grows and is never read fails the build
@@ -89,10 +104,20 @@ instead of going quiet.
 
 | Method | Path | Verified at | Why not |
 | --- | --- | --- | --- |
-| `GET` | `/v1/keys/self` | `:624` | The whoami for a **machine** credential. `authenticateKeyOnly` refuses anything that is not a `cfk_…` string (`:479-483`), so the user JWT this bundle holds is a 403 — and satisfying it would mean a browser holding a live API key, which is the one thing this product exists to stop. It is the SDK's route, not the console's. |
-| `GET` | `/v1/keys/:id` | `:797` | It answers the identical `ApiKeySummary` (`devplatform/src/apikeys.ts:136-155`) that the project's key list already returns for every key, and this app has no per-key address. |
-| `PUT` | `/v1/projects/:id/quotas` | `:836` | **A control this console must not draw.** It is `project:write` — the same authority that issues a key — and `setQuota` accepts any whole number ≥ 1 with no ceiling (`devplatform/src/quotas.ts:112-126`). A "raise my limit" button in a customer console makes the platform's quota advisory. Reported; it belongs to the operator surface. |
-| `POST` | `/v1/events` | `:1175` | The internal inbox, HMAC-checked over the raw bytes before `JSON.parse` (`:1176-1182`). A browser cannot hold that secret, and a bundle that shipped it would BE the revoke-anybody's-credentials endpoint the check prevents. |
+| `GET` | `/v1/keys/self` | `:732` | The whoami for a **machine** credential. `authenticateKeyOnly` refuses anything that is not a `cfk_…` string (`:572-576`), so the user JWT this bundle holds is a 403 — and satisfying it would mean a browser holding a live API key, which is the one thing this product exists to stop. It is the SDK's route, not the console's. |
+| `GET` | `/v1/keys/:id` | `:941` | It answers the identical `ApiKeySummary` (`devplatform/src/apikeys.ts:136-155`) that the project's key list already returns for every key, and this app has no per-key address. |
+| `GET` | `/v1/apps/pending` | `:1283` | **An operator route, and this is a customer console.** It lists other customers' unpublished submissions, keyed on nothing the reader owns. A CloudsForge platform admin signing in here would get a 200, which is the argument for not drawing it rather than against: a control that works for one class of reader and 403s for every other reader of the same screen teaches the wrong thing about whose console this is. |
+| `PUT` | `/v1/projects/:id/application/status` | `:1344` | **The route this repository asked for, declined here on purpose.** It closes the "nothing can approve a submitted application" finding, and it is an operator's: "a directory a developer can publish to unilaterally is a directory that eventually hosts a phishing page wearing this platform's chrome" (`:1334-1337`), and the OAuth consent screen is rendered from exactly that row. The submitting party must not hold the approving control. |
+| `POST` | `/v1/events` | `:1471` | The internal inbox, HMAC-checked over the raw bytes before `JSON.parse` (`:1472-1478`). A browser cannot hold that secret, and a bundle that shipped it would BE the revoke-anybody's-credentials endpoint the check prevents. |
+
+**`PUT /v1/projects/:id/quotas` is no longer on this list.** It was, and the reason given was that
+it required only `project:write` while `setQuota` accepted any whole number with no ceiling — the
+party the limit binds chose the limit. That was reported, and `micro-devplatform@e13c154` fixed it
+(worse than reported: any API key in the project carrying `devplatform:write` could do it too).
+The direction is now the authority — lowering is `project:write`, raising and creating are an
+operator's, and a browser can never be an operator because `devplatform:admin` is absent from
+`scopes.ts` and no key can hold it. So the usage screen draws a **lower my limit** control, which
+is a customer's own safety feature, and nothing that raises one.
 
 `/livez`, `/readyz`, `/metrics` and the three `/internal` routes are served too and are not reachable
 from a browser: `deploy/gateway/dynamic/policy.yml:100-102` refuses `^/+internal(/|$)` at a priority
@@ -102,8 +127,8 @@ nothing can outrank.
 
 ## The one-time secret, and how this app handles it
 
-Four routes return a credential and none returns it twice: an API key (`:780`), a webhook signing
-secret on creation (`:904`) and on rotation (`:934`), and an OAuth client secret (`:1000`).
+Four routes return a credential and none returns it twice: an API key (`:924`), a webhook signing
+secret on creation (`:1111`) and on rotation (`:1141`), and an OAuth client secret (`:1241`).
 
 `src/components/once.tsx` is the only place a secret is rendered. It is a modal dialog rather than a
 notification, and each of its three behaviours is a property of what it shows:
@@ -118,19 +143,19 @@ notification, and each of its three behaviours is a property of what it shows:
    copied the value or ticked the box that says they stored it.
 
 The warning also appears **on the form, before the request is sent**, in the service's own sentence
-verbatim (`devplatform/src/server.ts:783`, duplicated as `SHOWN_ONCE` in `src/lib/format.ts` and
+verbatim (`devplatform/src/server.ts:927`, duplicated as `SHOWN_ONCE` in `src/lib/format.ts` and
 checked character-for-character by `test/devplatform.test.ts`). A warning that first appears
 alongside the secret is a warning read after the decision it was meant to inform.
 
 **A replay is not a failure.** All four routes are wrapped in `withIdempotentRoute`, and the stored
 response carries the metadata only — the secret is attached to the first response and nowhere else
-(`devplatform/src/server.ts:731-734`). So a replay answers `200` with `replayed: true` and the
+(`devplatform/src/server.ts:875-878`). So a replay answers `200` with `replayed: true` and the
 secret field `null`. `<Replayed>` renders that as what it is: the artefact exists, it is live, it was
 shown when it was created, and if you no longer have it the remedy is to revoke and re-issue.
 
 **One honest exception, stated rather than hidden.** A webhook signing secret IS stored recoverably,
 because HMAC is not a one-way function of an input the service does not have — signing a delivery
-requires the secret itself (`devplatform/src/migrations.ts:44-51`). It is still shown once, because
+requires the secret itself (`devplatform/src/migrations.ts:59-66`). It is still shown once, because
 no route returns it (`devplatform/src/webhooks.ts:147`). `WEBHOOK_SECRET_NOTE` says exactly that and
 deliberately does not claim scrypt; `test/format.test.ts` asserts the two sentences differ.
 
@@ -145,10 +170,10 @@ mutating route; `micro-mint` reads it nowhere. This service does neither.
 The five are `POST /v1/projects`, `POST /v1/projects/:id/keys`,
 `POST /v1/projects/:id/webhook-endpoints`, `POST /v1/webhook-endpoints/:id/rotate-secret` and
 `POST /v1/projects/:id/oauth-clients`. A POST without the header is a **400**
-(`devplatform/src/server.ts:1293-1298`). The eleven exempt mutations each name the mechanism that
+(`devplatform/src/server.ts:1589-1594`). The eleven exempt mutations each name the mechanism that
 makes them safe without a wrapper — a natural key with `on conflict do nothing`, an upsert, a state
 transition claimed with a WHERE clause, or a DELETE — in
-`devplatform/src/routeidempotency.test.ts:34-62`.
+`devplatform/src/routeidempotency.test.ts:34-68`.
 
 `test/devplatform.test.ts` asserts both directions against the real service: the client sends a key
 to exactly the wrapped routes and to no other.
@@ -183,9 +208,9 @@ to sign in for a page the service would have handed them — the mirror of the e
 of sending a bearer to a route that never wanted one. `test/routes.test.ts` checks the declaration,
 `app.tsx` and `nginx.conf` against each other in all three directions.
 
-**The gate is not the security boundary.** `devplatform` verifies the bearer itself (`:461`), asks
-identity for the caller's role per request (`:558`), and answers **404 rather than 403** for an
-organisation or project the caller may not see (`:546`, `:520`) so that ids are not enumerable across
+**The gate is not the security boundary.** `devplatform` verifies the bearer itself (`:524`), asks
+identity for the caller's role per request (`:666`), and answers **404 rather than 403** for an
+organisation or project the caller may not see (`:654`, `:628`) so that ids are not enumerable across
 customers. This app therefore never renders a 404 here as "that belongs to someone else".
 
 ---
@@ -294,7 +319,9 @@ drawn mark, which would be this repository inventing brand.
 ## Known gaps
 
 Each is a finding with the lines it was read from. The first three are also rendered on the index
-page, held as data in `src/lib/devplatform.ts` so the screens and this file cannot disagree.
+page, held as data in `src/lib/devplatform.ts` (`GATEWAY_GAP`, `SDK_GAP`, `MALFORMED_ID_GAP`) so the
+screens and this file cannot disagree. A finding that gets fixed is DELETED from both rather than
+marked resolved — see §7 for what was here and what closed it.
 
 **1. The public API gateway routes none of this service.**
 `deploy/gateway/dynamic/public-api.yml` registers routers for pricing, activity, foresight, identity,
@@ -312,10 +339,20 @@ belongs to devplatform, so `@cloudsforge/sdk` and the `cloudsforge` CLI can pres
 bearer token and do nothing else with one. Both still say in their own source that devplatform does
 not exist (`sdk/packages/sdk/src/credentials.ts:7`, `sdk/packages/cli/src/run.ts:518`). It does.
 
-**3. Nothing can approve a submitted application.** `POST /v1/projects/:id/application/submit` moves
-a listing to `in_review`, and no route in the estate moves it further: `setApplicationStatus`
-(`devplatform/src/applications.ts:152`) is imported by the server (`devplatform/src/server.ts:149`)
-and called by no handler. The public directory stays empty however many listings are submitted.
+**3. A mistyped id is reported as a server fault.** Every `/v1` route that takes an `:id` compares
+it against a `uuid` column, and all but the two operator routes pass the path segment straight
+through. Postgres answers `22P02 invalid input syntax for type uuid`, nothing catches it, and the
+caller gets **`500 internal`** — so `GET /v1/projects/not-a-uuid` reports a platform failure for a
+typed URL. devplatform knows, and declines to change it in the same commit as the four fixes
+(`devplatform/src/server.ts:1632-1636`); that is a status-code change on shipped routes and rightly
+a separate decision. This console never sends one: its own addresses are those ids, and `assertUuid`
+in `src/lib/devplatform.ts` refuses a non-uuid before the request is built. Reported.
+
+The count in that comment is understated. It says "eleven shipped routes"; the routes taking an
+`:id` that reach a `uuid` column unguarded number **twenty-five**, from `GET /v1/organisations/:id`
+through `POST /v1/projects/:id/application/submit`. The behaviour is the same either way; the number
+is not, and a defect report that undercounts by more than half is one somebody will scope work
+against.
 
 **4. The dev port is an allocation, not a fact.** The registry gives `developers` 3012 and
 `devplatform` binds 4000. This is the sixth instance in the estate — after `admin` (3002 vs 4014),
@@ -332,14 +369,25 @@ origin this bundle is actually served from is not on that list and `devportal.<a
 nothing resolves. It does not break this app, whose production requests are same-origin; it would
 break any cross-origin call, and it is a name that will be believed. Reported to micro-deploy.
 
-**6. `deploy/README.md:274` says devplatform does not exist.** It does — a complete service with 31
+**6. `deploy/README.md:274` says devplatform does not exist.** It does — a complete service with 35
 `/v1` routes and a migrated schema. Reported to micro-deploy.
 
-**7. A disabled webhook endpoint cannot be re-enabled.**
-`POST /v1/webhook-endpoints/:id/disable` passes `true` unconditionally
-(`devplatform/src/server.ts:944`) and no route sets it back. The way back is to delete the endpoint
-and register it again, which mints a new signing secret the subscriber has to deploy. The screen says
-so rather than drawing a toggle. Reported.
+**7. Nothing on this page is a closed finding.** Three that were here are gone rather than ticked
+off, because a list that keeps its resolved entries is a list people stop reading. For the record,
+and because the closure is the evidence the reporting works:
+
+* *A quota the quota'd party can raise is not a quota* — `PUT /v1/projects/:id/quotas` was plain
+  `project:write` with no ceiling. Fixed by direction plus a schema ceiling; the usage screen now
+  draws a lowering control.
+* *Nothing can approve a submitted application* — `setApplicationStatus` was imported and called by
+  nothing. Fixed by `PUT /v1/projects/:id/application/status` and `GET /v1/apps/pending`, both
+  operator routes, both declined here.
+* *A disabled webhook endpoint cannot be re-enabled* — `/disable` had no inverse, so the only way
+  back minted a new signing secret mid-incident. Fixed by
+  `POST /v1/webhook-endpoints/:id/enable`, and the screen offers it.
+
+A fourth — *no route resolved a developer organisation* — is closed by `GET /v1/organisations`, and
+the organisations screen no longer issues a write in order to ask a question.
 
 **8. The webhook attempt ceiling is not on the wire.** `DEVPLATFORM_WEBHOOK_MAX_ATTEMPTS` defaults to
 8 (`devplatform/src/env.ts:215`) and no route returns it, so the delivery list cannot tell

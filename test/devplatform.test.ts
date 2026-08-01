@@ -21,9 +21,9 @@
  *
  * **3. HOW each route authenticates, not whether — and this service is the reason.** `micro-worlds-web`
  * greps each handler body for `await authenticate(ctx, deps)` and asserts a boolean. There is no
- * such literal inside ANY of devplatform's 31 `/v1` handlers: the call appears three times in the
- * file and all three are inside helpers (`server.ts:473`, `:480`, `:516`). Run here, the boolean
- * check would report all thirty-one routes public, including the twenty-five that authenticate —
+ * such literal inside ANY of devplatform's 35 `/v1` handlers: the call appears three times in the
+ * file and all three are inside helpers (`server.ts:566`, `:573`, `:609`). Run here, the boolean
+ * check would report all thirty-five routes public, including the twenty-nine that authenticate —
  * and a client built on that answer would send no bearer to the route that mints credentials. So
  * every route carries a MECHANISM and the handler body is matched against that mechanism's pattern.
  *
@@ -45,7 +45,10 @@
 import assert from 'node:assert/strict'
 import { existsSync, readFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
-import { describe, it } from 'node:test'
+import { afterEach, describe, it } from 'node:test'
+import { ApiError } from '../src/lib/api.ts'
+import { getProject, lowerQuota } from '../src/lib/devplatform.ts'
+import { installFetch, installWindow, json, removeWindow, type FetchStub } from './browser-stubs.ts'
 
 const here = (p: string) => fileURLToPath(new URL(`../${p}`, import.meta.url))
 
@@ -59,30 +62,60 @@ const CANDIDATES = [
 const server = CANDIDATES.find((p) => existsSync(p))
 
 /**
- * How a route establishes the caller, as one of six mechanisms.
+ * How a route establishes the caller, as one of ten mechanisms.
  *
  * The regex for each is a property of `devplatform/src/server.ts`, not a guess: `none` asserts the
- * ABSENCE of any of the other five, which is what makes the set exhaustive rather than a list of
+ * ABSENCE of any of the other nine, which is what makes the set exhaustive rather than a list of
  * things somebody happened to check for.
+ *
+ * ── THE THREE THAT DID NOT EXIST BEFORE `micro-devplatform@e13c154` ───────────────────────────
+ *
+ * `operator`      The service had no notion of one. It has now: a SERVICE token carrying the exact
+ *                 scope `devplatform:admin`, or a user token with the platform role `admin`
+ *                 (`devplatform/src/server.ts:553-557`). An API key can never be one —
+ *                 `devplatform:admin` is deliberately absent from `scopes.ts`, so `validateScopes`
+ *                 refuses it at issuance and no row can hold it. A browser cannot become an
+ *                 operator by holding a key.
+ * `operator-or-lower`
+ *                 `PUT /v1/projects/:id/quotas` alone. The DIRECTION is the authority: raising or
+ *                 creating needs an operator, lowering or writing the same value needs only
+ *                 `project:write`. The handler resolves the caller ONCE with `authenticateAny` and
+ *                 then takes one of two branches, so neither the plain `project:write` pattern nor
+ *                 the plain `operator` one describes it and a table that used either would be
+ *                 recording something that is not true.
+ * `user+member`
+ *                 `GET /v1/organisations` alone. A user token whose membership is asked of identity
+ *                 for the IDENTITY organisation named in the query — not `authoriseOrg`, which
+ *                 wants a developer organisation id this route exists to hand out in the first
+ *                 place.
  */
 type Auth =
   | 'none'
   | 'key'
   | 'user+admin'
+  | 'user+member'
   | 'org:read'
   | 'org:write'
   | 'project:read'
   | 'project:write'
+  | 'operator'
+  | 'operator-or-lower'
   | 'hmac'
 
 /** What a handler body must contain for each mechanism. `none` is handled separately. */
 const MECHANISM: Readonly<Record<Exclude<Auth, 'none'>, RegExp>> = {
   key: /await authenticateKeyOnly\(ctx, deps\)/,
   'user+admin': /await authenticateUser\(ctx, deps\)[\s\S]*permits\(role, ADMIN_ROLES\)/,
+  'user+member': /await authenticateUser\(ctx, deps\)[\s\S]*permits\(role, READ_ROLES\)/,
   'org:read': /await authoriseOrg\(ctx, deps, [^)]*'read'\)/,
   'org:write': /await authoriseOrg\(ctx, deps, [^)]*'write'\)/,
   'project:read': /await authoriseProject\(ctx, deps, [^)]*'read'\)/,
   'project:write': /await authoriseProject\(ctx, deps, [^)]*'write'\)/,
+  operator: /requireOperator\(await authenticateAny\(ctx, deps\)\)/,
+  // All three parts, because any one alone would accept a weaker handler: the single resolution,
+  // the operator branch, and the `project:write` fallback for everybody else.
+  'operator-or-lower':
+    /await authenticateAny\(ctx, deps\)[\s\S]*isOperator\(caller\)[\s\S]*authoriseProjectAs\(caller, deps, [^)]*'write'\)/,
   hmac: /verifyInbound\(raw, headerOf\(ctx\.req, SIGNATURE_HEADER\), deps\.ingestSecrets\)/,
 }
 
@@ -105,33 +138,36 @@ interface Route {
  * wrong, the test fails and names it — which is the property a comment does not have.
  */
 const SURFACE: readonly Route[] = [
-  { method: 'GET', path: '/v1/scopes', line: 604, auth: 'none', idempotent: false },
-  { method: 'POST', path: '/v1/organisations', line: 637, auth: 'user+admin', idempotent: false },
-  { method: 'GET', path: '/v1/organisations/:id', line: 655, auth: 'org:read', idempotent: false },
-  { method: 'GET', path: '/v1/organisations/:id/projects', line: 663, auth: 'org:read', idempotent: false },
-  { method: 'POST', path: '/v1/projects', line: 671, auth: 'org:write', idempotent: true },
-  { method: 'GET', path: '/v1/projects/:id', line: 694, auth: 'project:read', idempotent: false },
-  { method: 'POST', path: '/v1/projects/:id/service-accounts', line: 706, auth: 'project:write', idempotent: false },
-  { method: 'GET', path: '/v1/projects/:id/service-accounts', line: 717, auth: 'project:read', idempotent: false },
-  { method: 'POST', path: '/v1/projects/:id/keys', line: 736, auth: 'project:write', idempotent: true },
-  { method: 'GET', path: '/v1/projects/:id/keys', line: 790, auth: 'project:read', idempotent: false },
-  { method: 'DELETE', path: '/v1/keys/:id', line: 812, auth: 'project:write', idempotent: false },
-  { method: 'GET', path: '/v1/projects/:id/quotas', line: 856, auth: 'project:read', idempotent: false },
-  { method: 'GET', path: '/v1/projects/:id/usage', line: 866, auth: 'project:read', idempotent: false },
-  { method: 'POST', path: '/v1/projects/:id/webhook-endpoints', line: 876, auth: 'project:write', idempotent: true },
-  { method: 'GET', path: '/v1/projects/:id/webhook-endpoints', line: 907, auth: 'project:read', idempotent: false },
-  { method: 'POST', path: '/v1/webhook-endpoints/:id/rotate-secret', line: 916, auth: 'project:write', idempotent: true },
-  { method: 'POST', path: '/v1/webhook-endpoints/:id/disable', line: 937, auth: 'project:write', idempotent: false },
-  { method: 'DELETE', path: '/v1/webhook-endpoints/:id', line: 947, auth: 'project:write', idempotent: false },
-  { method: 'GET', path: '/v1/webhook-endpoints/:id/deliveries', line: 956, auth: 'project:read', idempotent: false },
-  { method: 'POST', path: '/v1/projects/:id/oauth-clients', line: 966, auth: 'project:write', idempotent: true },
-  { method: 'GET', path: '/v1/projects/:id/oauth-clients', line: 1003, auth: 'project:read', idempotent: false },
-  { method: 'DELETE', path: '/v1/oauth-clients/:id', line: 1008, auth: 'project:write', idempotent: false },
-  { method: 'GET', path: '/v1/apps', line: 1022, auth: 'none', idempotent: false },
-  { method: 'GET', path: '/v1/apps/:slug', line: 1027, auth: 'none', idempotent: false },
-  { method: 'PUT', path: '/v1/projects/:id/application', line: 1034, auth: 'project:write', idempotent: false },
-  { method: 'GET', path: '/v1/projects/:id/application', line: 1048, auth: 'project:read', idempotent: false },
-  { method: 'POST', path: '/v1/projects/:id/application/submit', line: 1056, auth: 'project:write', idempotent: false },
+  { method: 'GET', path: '/v1/scopes', line: 712, auth: 'none', idempotent: false },
+  { method: 'POST', path: '/v1/organisations', line: 745, auth: 'user+admin', idempotent: false },
+  { method: 'GET', path: '/v1/organisations', line: 784, auth: 'user+member', idempotent: false },
+  { method: 'GET', path: '/v1/organisations/:id', line: 799, auth: 'org:read', idempotent: false },
+  { method: 'GET', path: '/v1/organisations/:id/projects', line: 807, auth: 'org:read', idempotent: false },
+  { method: 'POST', path: '/v1/projects', line: 815, auth: 'org:write', idempotent: true },
+  { method: 'GET', path: '/v1/projects/:id', line: 838, auth: 'project:read', idempotent: false },
+  { method: 'POST', path: '/v1/projects/:id/service-accounts', line: 850, auth: 'project:write', idempotent: false },
+  { method: 'GET', path: '/v1/projects/:id/service-accounts', line: 861, auth: 'project:read', idempotent: false },
+  { method: 'POST', path: '/v1/projects/:id/keys', line: 880, auth: 'project:write', idempotent: true },
+  { method: 'GET', path: '/v1/projects/:id/keys', line: 934, auth: 'project:read', idempotent: false },
+  { method: 'DELETE', path: '/v1/keys/:id', line: 956, auth: 'project:write', idempotent: false },
+  { method: 'PUT', path: '/v1/projects/:id/quotas', line: 1011, auth: 'operator-or-lower', idempotent: false },
+  { method: 'GET', path: '/v1/projects/:id/quotas', line: 1063, auth: 'project:read', idempotent: false },
+  { method: 'GET', path: '/v1/projects/:id/usage', line: 1073, auth: 'project:read', idempotent: false },
+  { method: 'POST', path: '/v1/projects/:id/webhook-endpoints', line: 1083, auth: 'project:write', idempotent: true },
+  { method: 'GET', path: '/v1/projects/:id/webhook-endpoints', line: 1114, auth: 'project:read', idempotent: false },
+  { method: 'POST', path: '/v1/webhook-endpoints/:id/rotate-secret', line: 1123, auth: 'project:write', idempotent: true },
+  { method: 'POST', path: '/v1/webhook-endpoints/:id/disable', line: 1154, auth: 'project:write', idempotent: false },
+  { method: 'POST', path: '/v1/webhook-endpoints/:id/enable', line: 1178, auth: 'project:write', idempotent: false },
+  { method: 'DELETE', path: '/v1/webhook-endpoints/:id', line: 1188, auth: 'project:write', idempotent: false },
+  { method: 'GET', path: '/v1/webhook-endpoints/:id/deliveries', line: 1197, auth: 'project:read', idempotent: false },
+  { method: 'POST', path: '/v1/projects/:id/oauth-clients', line: 1207, auth: 'project:write', idempotent: true },
+  { method: 'GET', path: '/v1/projects/:id/oauth-clients', line: 1244, auth: 'project:read', idempotent: false },
+  { method: 'DELETE', path: '/v1/oauth-clients/:id', line: 1249, auth: 'project:write', idempotent: false },
+  { method: 'GET', path: '/v1/apps', line: 1263, auth: 'none', idempotent: false },
+  { method: 'GET', path: '/v1/apps/:slug', line: 1291, auth: 'none', idempotent: false },
+  { method: 'PUT', path: '/v1/projects/:id/application', line: 1298, auth: 'project:write', idempotent: false },
+  { method: 'GET', path: '/v1/projects/:id/application', line: 1312, auth: 'project:read', idempotent: false },
+  { method: 'POST', path: '/v1/projects/:id/application/submit', line: 1320, auth: 'project:write', idempotent: false },
 ]
 
 /**
@@ -143,10 +179,11 @@ const SURFACE: readonly Route[] = [
  * keyed by these citations, and the last test in the first block requires each to be there.
  */
 const DECLINED: readonly Route[] = [
-  { method: 'GET', path: '/v1/keys/self', line: 624, auth: 'key', idempotent: false },
-  { method: 'GET', path: '/v1/keys/:id', line: 797, auth: 'project:read', idempotent: false },
-  { method: 'PUT', path: '/v1/projects/:id/quotas', line: 836, auth: 'project:write', idempotent: false },
-  { method: 'POST', path: '/v1/events', line: 1175, auth: 'hmac', idempotent: false },
+  { method: 'GET', path: '/v1/keys/self', line: 732, auth: 'key', idempotent: false },
+  { method: 'GET', path: '/v1/keys/:id', line: 941, auth: 'project:read', idempotent: false },
+  { method: 'GET', path: '/v1/apps/pending', line: 1283, auth: 'operator', idempotent: false },
+  { method: 'PUT', path: '/v1/projects/:id/application/status', line: 1344, auth: 'operator', idempotent: false },
+  { method: 'POST', path: '/v1/events', line: 1471, auth: 'hmac', idempotent: false },
 ]
 
 const ALL: readonly Route[] = [...SURFACE, ...DECLINED]
@@ -199,9 +236,24 @@ function codeOf(source: string): string {
     .join('\n')
 }
 
+/**
+ * One request path, as it appears in the source: a quoted string starting `/v1/`.
+ *
+ * ── `${…}` MAY CONTAIN A QUOTE, AND AN EARLIER VERSION OF THIS PATTERN COULD NOT SEE PAST ONE ──
+ *
+ * It was `/['"`](\/v1\/[^'"`]*)['"`]/`. That reads to the first quote of ANY kind, so the moment a
+ * wrapper interpolated a call carrying a string argument —
+ * `` `/v1/projects/${encodeURIComponent(assertUuid(id, 'project id'))}/keys` `` — the match stopped
+ * inside the interpolation and the extractor reported a truncated path. It failed loudly rather
+ * than passing, which is the right direction, but it failed a CORRECT client and named the wrong
+ * cause. An interpolation is now consumed whole, quotes and all, before the closing quote is
+ * looked for.
+ */
+const PATH_LITERAL = /['"`](\/v1\/(?:\$\{[^}]*\}|[^'"`])*)['"`]/g
+
 /** Every request path this client sends, read out of its source with the PROSE STRIPPED. */
 export function requestedPaths(source: string): readonly string[] {
-  return [...codeOf(source).matchAll(/['"`](\/v1\/[^'"`]*)['"`]/g)].map((m) => m[1] ?? '')
+  return [...codeOf(source).matchAll(PATH_LITERAL)].map((m) => m[1] ?? '')
 }
 
 /**
@@ -215,7 +267,7 @@ export function requestedPaths(source: string): readonly string[] {
  */
 function requestedCalls(source: string): ReadonlyArray<{ method: string; path: string; block: string }> {
   const code = codeOf(source)
-  const matches = [...code.matchAll(/['"`](\/v1\/[^'"`]*)['"`]/g)]
+  const matches = [...code.matchAll(PATH_LITERAL)]
   return matches.map((match, index) => {
     const from = (match.index ?? 0) + match[0].length
     const to = matches[index + 1]?.index ?? code.length
@@ -230,7 +282,7 @@ describe('the client calls only routes it has cited', () => {
     const paths = requestedPaths(client)
     // Stated positively so the assertion below cannot go vacuous by the extractor breaking and
     // finding nothing at all.
-    assert.ok(paths.length >= 25, `expected the call sites, found ${paths.length}: ${paths.join(', ')}`)
+    assert.ok(paths.length >= 28, `expected the call sites, found ${paths.length}: ${paths.join(', ')}`)
 
     for (const path of new Set(paths)) {
       const shape = placeholder(path)
@@ -260,8 +312,15 @@ describe('the client calls only routes it has cited', () => {
       // A two-segment helper collapsing a path. `/v1/projects/x/keys` has four segments; a
       // `${scope}` standing for `projects/${id}` gives three, matching nothing.
       '/v1/${scope}/keys',
-      // The route that would exist if somebody assumed a list endpoint into being.
-      '/v1/organisations',
+      // Keys hang off a PROJECT, never off an organisation, and this is the mistake somebody makes
+      // reading the two `/v1/organisations/:id/…` routes and assuming the family goes further.
+      // Four segments under a served prefix, and no route has that shape.
+      //
+      // This entry replaces `/v1/organisations`, which was in this list until
+      // `micro-devplatform@e13c154` and is now genuinely served — see SURFACE. It was removed
+      // rather than left to fail, because a mutation list asserting the absence of something the
+      // service serves is a list that is wrong about the service.
+      '/v1/organisations/${id}/keys',
     ]
     for (const path of dead) {
       assert.equal(
@@ -288,7 +347,7 @@ describe('the client calls only routes it has cited', () => {
 
   it('every call site uses a method the surface table cites for that shape', () => {
     const calls = requestedCalls(client)
-    assert.ok(calls.length >= 25, `expected the call sites, found ${calls.length}`)
+    assert.ok(calls.length >= 28, `expected the call sites, found ${calls.length}`)
     for (const call of calls) {
       assert.ok(
         SURFACE.some((r) => r.method === call.method && matchesShape(placeholder(call.path), r.path)),
@@ -346,6 +405,120 @@ describe('the client calls only routes it has cited', () => {
   })
 })
 
+/**
+ * THE TWO REFUSALS THIS CLIENT MAKES BEFORE A REQUEST EXISTS.
+ *
+ * Both mirror something the service also refuses, and neither is decoration:
+ *
+ *   * a malformed id is `500 internal` upstream, not a 400 — `ctx.params['id']` reaches a `uuid`
+ *     column on every route that predates `requireUuid`. A console whose own addresses are those
+ *     ids must not turn a typo into a status-page visit.
+ *   * a quota RAISE is a 403 upstream. Refusing it here means a developer reads a sentence about
+ *     the rule rather than one about their authority.
+ *
+ * The property asserted is **that no request was sent**, not merely that a promise rejected. A
+ * guard that threw after `fetch` had already gone out would pass a check on the error alone while
+ * leaving the 500 exactly where it was, so `stub.calls` is the assertion in both.
+ */
+describe('the client refuses, before the wire, what the service refuses on it', () => {
+  let stub: FetchStub | null = null
+
+  afterEach(() => {
+    stub?.restore()
+    stub = null
+    removeWindow()
+  })
+
+  /** A fetch that fails the test if it is ever reached. */
+  function noRequestExpected(): FetchStub {
+    installWindow('http://localhost:5183/')
+    return installFetch(() => json(200, { ok: true }))
+  }
+
+  it('sends nothing at all when a path id is not a uuid', async () => {
+    stub = noRequestExpected()
+    await assert.rejects(
+      // An async wrapper, because these guards throw SYNCHRONOUSLY — the request is refused before
+      // a promise exists, which is the property being asserted. `assert.rejects` re-throws a
+      // synchronous throw without ever consulting the validator, so the throw has to become a
+      // rejection first or this check would report the right error as an unexpected one.
+      async () => getProject('not-a-uuid'),
+      (err: unknown) =>
+        err instanceof ApiError && err.status === 0 && err.code === 'malformed_id',
+      'a malformed project id must be refused as a malformed id, not as a server fault',
+    )
+    assert.deepEqual(stub.calls, [], 'a request went out with a malformed id in the path')
+  })
+
+  it('accepts a real uuid, so the guard is not simply refusing everything', async () => {
+    // The mutation, in the suite: a check that rejected every id would pass the test above and
+    // break the whole console.
+    stub = noRequestExpected()
+    await getProject('5c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f')
+    assert.equal(stub.calls.length, 1)
+    assert.match(stub.calls[0]?.url ?? '', /\/v1\/projects\/5c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f$/)
+  })
+
+  it('sends nothing when asked to RAISE a quota', async () => {
+    stub = noRequestExpected()
+    await assert.rejects(
+      async () =>
+        lowerQuota('5c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f', {
+          environment: 'test',
+          period: 'minute',
+          maxUnits: 5_000,
+          current: 1_000,
+        }),
+      (err: unknown) =>
+        err instanceof ApiError && err.status === 0 && err.code === 'quota_raise_refused',
+      'a raise must be refused here as well as upstream',
+    )
+    assert.deepEqual(stub.calls, [], 'a quota raise went out on the wire')
+  })
+
+  it('sends nothing when asked to set a quota to zero', async () => {
+    // Zero is not expressible: `quotas_max_positive` refuses it at the database, and the service
+    // says why — a quota of zero is a suspension, which is a status on the organisation rather
+    // than a limit on a meter. It is smaller than the current value, so the direction check alone
+    // would let it through.
+    stub = noRequestExpected()
+    await assert.rejects(
+      async () =>
+        lowerQuota('5c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f', {
+          environment: 'test',
+          period: 'minute',
+          maxUnits: 0,
+          current: 1_000,
+        }),
+      (err: unknown) => err instanceof ApiError && err.code === 'invalid_quota',
+    )
+    assert.deepEqual(stub.calls, [], 'a quota of zero went out on the wire')
+  })
+
+  it('does send a genuine reduction, as a PUT with no Idempotency-Key', async () => {
+    stub = noRequestExpected()
+    await lowerQuota('5c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f', {
+      environment: 'test',
+      period: 'minute',
+      maxUnits: 100,
+      current: 1_000,
+    })
+    assert.equal(stub.calls.length, 1)
+    const call = stub.calls[0]
+    assert.equal(call?.method, 'PUT')
+    assert.match(call?.url ?? '', /\/v1\/projects\/[0-9a-f-]+\/quotas$/)
+    // The route is not wrapped, so a header here would be this client inventing a contract.
+    assert.equal(call?.headers['idempotency-key'], undefined)
+    // `current` is this app's own bookkeeping and must not reach the service, which reads the
+    // stored row rather than trusting the caller's idea of it.
+    assert.deepEqual(JSON.parse(call?.body ?? '{}'), {
+      environment: 'test',
+      period: 'minute',
+      maxUnits: 100,
+    })
+  })
+})
+
 describe('the cited lines are the lines that register the routes', () => {
   if (server === undefined) {
     // NOT a silent pass. It says which check did not run, and CI makes the absence fatal.
@@ -360,7 +533,7 @@ describe('the cited lines are the lines that register the routes', () => {
 
   it('reads a server with a route table in it, so this cannot pass on an empty file', () => {
     const defines = lines.filter((l) => /^\s{4}define\('/.test(l))
-    assert.ok(defines.length >= 30, `expected devplatform's route list, found ${defines.length} defines`)
+    assert.ok(defines.length >= 35, `expected devplatform's route list, found ${defines.length} defines`)
   })
 
   for (const route of ALL) {
@@ -497,16 +670,110 @@ describe('the cited lines are the lines that register the routes', () => {
     )
   })
 
+  /**
+   * The two shapes in which `devplatform` attaches a credential to a response.
+   *
+   * ══════════════════════════════════════════════════════════════════════════════════════════════
+   * A GUARD THAT DESCRIBED FOUR ROUTES AND EXAMINED ONE.
+   *
+   * The version of this check that shipped read `/^\s*(?:secretKey|clientSecret):/gm` and asserted
+   * the count was 1, under a comment claiming that "`secretKey`, `clientSecret` and the webhook
+   * `secret` appear on exactly the four creating routes and nowhere else". They do not appear in
+   * that form. Three of the four attach their secret by SPREAD —
+   * `body: { …(reply.body …), secret }` — which has no `field:` at the start of a line, so the
+   * regex never saw them. The assertion was true, the comment was false, and a reveal route added
+   * to the webhook or OAuth path would have passed it.
+   *
+   * Both shapes are matched now, the total is four rather than one, and each is required to sit
+   * inside a route the table already names as a creating one — so a fifth anywhere fails, and a
+   * fourth that MOVED to a different route fails too.
+   * ══════════════════════════════════════════════════════════════════════════════════════════════
+   */
+  const ATTACHES_SECRET =
+    /^\s*secretKey:|body: \{ \.\.\.\(reply\.body as Record<string, unknown>\), (?:secret|clientSecret) \}/
+
+  /** The route a line belongs to: the nearest `define(` at or above it. No line number is written. */
+  function routeAt(line: number): string {
+    for (let i = line - 1; i >= 0; i--) {
+      const match = /^\s{4}define\('([A-Z]+)',\s*'([^']+)'/.exec(lines[i] ?? '')
+      if (match) return `${match[1]} ${match[2]}`
+    }
+    return 'outside any route'
+  }
+
   it('there is still no route that returns a secret a second time', () => {
-    // The claim the whole `<ShownOnce>` component rests on. `secretKey`, `clientSecret` and the
-    // webhook `secret` appear on exactly the four creating routes and nowhere else; a fifth
-    // occurrence would mean a reveal route had appeared and the copy in this app would be wrong.
-    const reveals = [...source.matchAll(/^\s*(?:secretKey|clientSecret):/gm)].length
-    assert.equal(reveals, 1, 'a second route now puts a key secret on the wire')
+    // The claim the whole `<ShownOnce>` component rests on, and the reason this app may never draw
+    // a reveal control: a credential is on the wire exactly where it is minted.
+    const creating = [
+      'POST /v1/projects/:id/keys',
+      'POST /v1/projects/:id/webhook-endpoints',
+      'POST /v1/webhook-endpoints/:id/rotate-secret',
+      'POST /v1/projects/:id/oauth-clients',
+    ]
+    // Each of the four is a route this table already knows about, so the list above cannot drift
+    // into naming something the service does not serve.
+    for (const route of creating) {
+      assert.ok(
+        SURFACE.some((r) => `${r.method} ${r.path}` === route),
+        `${route} is not in the surface table`,
+      )
+    }
+
+    const attaching = lines
+      .map((line, index) => (ATTACHES_SECRET.test(line) ? index + 1 : 0))
+      .filter((line) => line > 0)
+    assert.equal(
+      attaching.length,
+      4,
+      `four routes mint a credential; ${attaching.length} places attach one to a response ` +
+        `(${attaching.map((line) => `${routeAt(line)} at :${line}`).join('; ')})`,
+    )
+    assert.deepEqual(
+      [...new Set(attaching.map(routeAt))].sort(),
+      [...creating].sort(),
+      'a secret is attached to a response by a route that does not mint one',
+    )
     assert.match(
       source,
       /api_keys_slow_kdf_only|scrypt/,
       'the service no longer mentions scrypt; the claim that a key cannot be recovered needs re-checking',
+    )
+  })
+
+  /**
+   * The DIRECTION rule on `PUT /v1/projects/:id/quotas`, which is what this console's control rests
+   * on.
+   *
+   * The mechanism table records that the route takes an operator OR a `project:write` caller. That
+   * alone would be satisfied by a handler that let anybody with `project:write` write any number —
+   * which is the defect this repository reported. The property the "lower my limit" control depends
+   * on is narrower: a non-operator may write a value that is not greater than the one already
+   * there, and may not create a row where none exists. Both are asserted here, against the handler,
+   * because src/lib/devplatform.ts refuses a raise BEFORE the wire and a client-side refusal that
+   * the service does not also make is decoration.
+   */
+  it('a non-operator may lower a quota and may not raise or create one', () => {
+    const route = SURFACE.find((r) => r.method === 'PUT' && r.path === '/v1/projects/:id/quotas')
+    assert.ok(route, 'the surface table no longer names the quota route')
+    const body = bodyOf(route.line)
+    assert.match(
+      body,
+      /if \(!operator\) \{[\s\S]*maxUnits > current\.maxUnits[\s\S]*ForbiddenError/,
+      'a non-operator is no longer refused a RAISE; this console must not offer to lower a limit ' +
+        'on a route that would equally accept a raise',
+    )
+    assert.match(
+      body,
+      /const current = await findQuota\([\s\S]*if \(!current\) \{[\s\S]*ForbiddenError/,
+      'a missing quota row is no longer an operator decision; absence means UNLIMITED, so a ' +
+        'finite value written where there was no row is a raise wearing a reduction’s clothes',
+    )
+    // And the ceiling the service names in its 400, so this app can say the number rather than
+    // paraphrasing it.
+    assert.match(
+      source,
+      /MAX_UNITS_CEILING\[period\]/,
+      'the quota reply no longer carries the ceiling',
     )
   })
 })
