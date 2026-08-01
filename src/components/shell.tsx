@@ -1,0 +1,88 @@
+/**
+ * The app shell: the company bar, the section navigation, and the page.
+ *
+ * The bar is `CloudsForgeBar` from @cloudsforge/ui and is never reimplemented. It is passed
+ * `PRODUCT` — `developers` — which the registry marks `inSwitcher: false`
+ * (`ui/packages/ui/src/surfaces.ts:394`), so the switcher renders the six products and Forge Hub
+ * and marks none of them current. That is correct rather than a gap: this surface is reached from
+ * the footer, not from the switcher (`ui/packages/ui/src/surfaces.ts:382-383`), and putting a
+ * developer console beside the products would say it is one.
+ *
+ * There is no brand mark in the bar for this surface, and that is also a registry fact rather than
+ * an omission: `developers` carries `markId: null` (`ui/packages/ui/src/surfaces.ts:392`) and
+ * `hasMark('developers')` is therefore false (`ui/packages/ui/src/index.tsx:449-451`). `micro-brand`
+ * DOES hold `assets/developers/mark-1024x1024.png` and a wordmark — the entitled set is "mark,
+ * favicon, wordmark, og", seven files, with no social banner (`brand/plan.ts:234-243`,
+ * `brand/README.md:41`) — so the artwork exists and the design system has no SVG drawing for it.
+ * The favicons and the OG card in `public/` come from that set. Reported to micro-ui; not papered
+ * over here with a locally drawn mark, which would be this repository inventing brand.
+ */
+import { CloudsForgeBar } from '@cloudsforge/ui'
+import { NavLink, Outlet } from 'react-router-dom'
+import { PRODUCT } from '../lib/hosts.ts'
+import { NAV } from '../lib/routes.ts'
+import { useSession } from '../lib/auth.tsx'
+
+export function AppShell({ unregistered = false }: { unregistered?: boolean }) {
+  const { account, signIn, signOut } = useSession()
+
+  return (
+    <>
+      {/* Skip link first in the DOM: the key list and the scope table are both long, and a keyboard
+          user should not have to tab the whole navigation to reach them. */}
+      <a className="dp-skip" href="#main">
+        Skip to the page
+      </a>
+      <CloudsForgeBar
+        current={PRODUCT}
+        account={account}
+        onSignIn={() => signIn()}
+        onSignOut={signOut}
+      />
+      {/*
+        The sub-nav is sticky at exactly `var(--cf-bar-h)` — the bar's own height token, not a
+        number copied out of it. When the bar's height changes, this moves with it.
+      */}
+      <nav className="dp-subnav" aria-label="Sections">
+        <div className="dp-subnav__inner">
+          {NAV.map((item) => (
+            <NavLink
+              key={item.to}
+              to={item.to}
+              end={item.to === '/'}
+              className={({ isActive }) => `dp-subnav__link${isActive ? ' is-active' : ''}`}
+            >
+              {item.label}
+            </NavLink>
+          ))}
+        </div>
+      </nav>
+      <main className="dp-main" id="main">
+        {/*
+          Not fatal, so not a refusal — the scope vocabulary and the public directory are worth
+          serving from anywhere. But louder here than on a product page, and for a reason.
+
+          `cloudsforgeHosts()` derives the apex by stripping a KNOWN subdomain
+          (`ui/packages/ui/src/index.tsx:155-158`), so an address the registry does not know makes
+          every estate URL resolve one level too deep — including this app's own API base and the
+          account portal it would send a bearer token through. On a catalogue that is a broken page;
+          here it is a credential console pointed somewhere unintended.
+        */}
+        {unregistered && (
+          <p className="dp-note dp-note--warn" role="status">
+            <span className="dp-note__icon" aria-hidden="true">
+              ▲
+            </span>
+            <span>
+              This page is being served from an address the CloudsForge surface registry does not
+              know, so every host it resolves — the account portal and this console’s own API
+              included — is derived from the wrong apex. Do not sign in or create a credential from
+              here. Its home is the <code className="cf-num">developers</code> surface.
+            </span>
+          </p>
+        )}
+        <Outlet />
+      </main>
+    </>
+  )
+}

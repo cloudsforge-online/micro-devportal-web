@@ -1,0 +1,781 @@
+/*
+ * The Developer Platform console's own styles, on top of @cloudsforge/ui.
+ *
+ * ══════════════════════════════════════════════════════════════════════════════════════════════
+ * EVERY CUSTOM PROPERTY REFERENCED HERE IS DEFINED IN `ui/packages/ui/src/tokens.css`, AND A TEST
+ * PROVES IT.
+ *
+ * `test/tokens.test.ts` reads the sibling design system, collects every `--cf-*` this file names,
+ * and fails on one that tokens.css does not declare. That is not a style preference. An undefined
+ * custom property makes the whole declaration invalid at computed-value time, so
+ * `border: 1px solid var(--cf-undefined)` does not fall back to a sensible border — it drops the
+ * border entirely, silently, in a file that looks correct.
+ *
+ * The estate has already shipped this. `micro-mint-web/src/styles.css` references TEN properties
+ * that do not exist across 72 declarations, while every other frontend in the estate is clean.
+ * Reported, not fixed from here.
+ *
+ * The names that DO exist and are used below:
+ *   borders   --cf-line, --cf-line-strong                     (never a "border" token)
+ *   states    --cf-success, --cf-warn, --cf-danger            (never a "status" or "critical" one)
+ *   radii     --cf-radius-sm, --cf-radius, --cf-radius-lg     (never a "md")
+ *   spacing   --cf-space-3xs … --cf-space-3xl                 (never a numbered scale)
+ *   type      --cf-font-sans, --cf-font-mono, --cf-font-display
+ *
+ * A `var(--undefined, #hex)` is not a repair either: it is a hard-coded colour wearing a token's
+ * clothes, and it stops following the substrate the moment somebody switches the ash ramp. There
+ * is one literal colour in this file and it is `transparent`.
+ * ══════════════════════════════════════════════════════════════════════════════════════════════
+ */
+
+/* ---- the frame -------------------------------------------------------- */
+
+.dp-skip {
+  position: absolute;
+  left: -9999px;
+  top: 0;
+  z-index: 100;
+  padding: var(--cf-space-sm) var(--cf-space-lg);
+  background: var(--cf-accent);
+  color: var(--cf-accent-ink);
+  border-radius: 0 0 var(--cf-radius) 0;
+}
+
+.dp-skip:focus {
+  left: 0;
+}
+
+.dp-subnav {
+  position: sticky;
+  /* The bar's OWN height token, not a number copied out of it. */
+  top: var(--cf-bar-h);
+  z-index: 20;
+  background: var(--cf-bg);
+  border-bottom: 1px solid var(--cf-line);
+}
+
+.dp-subnav__inner {
+  max-width: var(--cf-max-w);
+  margin: 0 auto;
+  display: flex;
+  gap: var(--cf-space-lg);
+  padding: 0 var(--cf-space-xl);
+  overflow-x: auto;
+}
+
+.dp-subnav__link {
+  display: inline-block;
+  padding: var(--cf-space-md) 0;
+  color: var(--cf-fg-dim);
+  text-decoration: none;
+  border-bottom: 2px solid transparent;
+  white-space: nowrap;
+  transition: color var(--cf-speed) var(--cf-ease);
+}
+
+.dp-subnav__link:hover {
+  color: var(--cf-fg);
+}
+
+.dp-subnav__link.is-active {
+  color: var(--cf-accent);
+  border-bottom-color: var(--cf-accent);
+}
+
+.dp-main {
+  max-width: var(--cf-max-w);
+  margin: 0 auto;
+  padding: var(--cf-space-2xl) var(--cf-space-xl) var(--cf-space-3xl);
+}
+
+/* ---- pages ------------------------------------------------------------ */
+
+.dp-page__head {
+  margin-bottom: var(--cf-space-xl);
+}
+
+.dp-page__title {
+  margin: 0 0 var(--cf-space-sm);
+  font-family: var(--cf-font-display);
+  font-size: var(--cf-text-3xl);
+  color: var(--cf-fg);
+}
+
+.dp-page__lead {
+  margin: 0;
+  max-width: 62ch;
+  color: var(--cf-fg-dim);
+  font-size: var(--cf-text-md);
+}
+
+.dp-h2 {
+  margin: var(--cf-space-2xl) 0 var(--cf-space-md);
+  font-family: var(--cf-font-display);
+  font-size: var(--cf-text-xl);
+  color: var(--cf-fg);
+  border-bottom: 1px solid var(--cf-line);
+  padding-bottom: var(--cf-space-xs);
+}
+
+.dp-h3 {
+  margin: var(--cf-space-xl) 0 var(--cf-space-sm);
+  font-size: var(--cf-text-lg);
+  color: var(--cf-fg);
+}
+
+.dp-h4 {
+  margin: var(--cf-space-lg) 0 var(--cf-space-2xs);
+  font-size: var(--cf-text-md);
+  color: var(--cf-fg-dim);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.dp-para {
+  max-width: 72ch;
+  margin: 0 0 var(--cf-space-md);
+  color: var(--cf-fg-dim);
+}
+
+.dp-para--prewrap {
+  white-space: pre-wrap;
+}
+
+.dp-cta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--cf-space-md);
+  margin-bottom: var(--cf-space-xl);
+}
+
+.dp-sections {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--cf-space-md);
+  margin-bottom: var(--cf-space-xl);
+  border-bottom: 1px solid var(--cf-line);
+}
+
+.dp-sections__link {
+  padding: var(--cf-space-sm) var(--cf-space-xs);
+  color: var(--cf-fg-dim);
+  text-decoration: none;
+  border-bottom: 2px solid transparent;
+}
+
+.dp-sections__link.is-active {
+  color: var(--cf-accent);
+  border-bottom-color: var(--cf-accent);
+}
+
+/* ---- tables ----------------------------------------------------------- */
+
+.dp-tablewrap {
+  /* Wide content scrolls INSIDE its own container; the page body never scrolls sideways. */
+  overflow-x: auto;
+  border: 1px solid var(--cf-line);
+  border-radius: var(--cf-radius);
+  background: var(--cf-surface);
+  margin-bottom: var(--cf-space-lg);
+}
+
+.dp-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: var(--cf-text-sm);
+}
+
+.dp-table__caption {
+  caption-side: bottom;
+  padding: var(--cf-space-sm) var(--cf-space-md);
+  text-align: left;
+  color: var(--cf-fg-mute);
+  font-size: var(--cf-text-xs);
+}
+
+.dp-table th,
+.dp-table td {
+  padding: var(--cf-space-sm) var(--cf-space-md);
+  text-align: left;
+  vertical-align: top;
+  border-bottom: 1px solid var(--cf-line);
+}
+
+.dp-table th {
+  color: var(--cf-fg-mute);
+  font-weight: 600;
+  font-size: var(--cf-text-xs);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.dp-table tbody tr:last-child td {
+  border-bottom: none;
+}
+
+/* ---- cards ------------------------------------------------------------ */
+
+.dp-cards {
+  list-style: none;
+  margin: 0 0 var(--cf-space-lg);
+  padding: 0;
+  display: grid;
+  gap: var(--cf-space-md);
+}
+
+.dp-card {
+  border: 1px solid var(--cf-line);
+  border-radius: var(--cf-radius);
+  background: var(--cf-surface);
+  padding: var(--cf-space-lg);
+}
+
+.dp-card__title {
+  margin: 0 0 var(--cf-space-2xs);
+  font-size: var(--cf-text-lg);
+  color: var(--cf-fg);
+}
+
+.dp-card__tagline {
+  margin: 0 0 var(--cf-space-xs);
+  color: var(--cf-fg-dim);
+}
+
+.dp-card__meta {
+  margin: 0;
+  color: var(--cf-fg-mute);
+  font-size: var(--cf-text-xs);
+}
+
+/* ---- facts ------------------------------------------------------------ */
+
+.dp-facts {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(14rem, 1fr));
+  gap: var(--cf-space-md);
+  margin: 0 0 var(--cf-space-lg);
+}
+
+.dp-fact__label {
+  color: var(--cf-fg-mute);
+  font-size: var(--cf-text-xs);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.dp-fact__value {
+  margin: var(--cf-space-3xs) 0 0;
+  color: var(--cf-fg);
+}
+
+.dp-absent {
+  color: var(--cf-fg-mute);
+  font-style: italic;
+}
+
+.dp-identifier {
+  word-break: break-all;
+}
+
+.dp-scopes {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: var(--cf-space-2xs);
+}
+
+.dp-scope {
+  display: inline-block;
+  padding: var(--cf-space-3xs) var(--cf-space-2xs);
+  border: 1px solid var(--cf-line);
+  border-radius: var(--cf-radius-sm);
+  background: var(--cf-bg-sunken);
+  font-size: var(--cf-text-2xs);
+}
+
+/* ---- badges ----------------------------------------------------------- */
+
+.dp-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--cf-space-2xs);
+  padding: var(--cf-space-3xs) var(--cf-space-xs);
+  border: 1px solid var(--cf-line);
+  border-radius: var(--cf-radius-sm);
+  font-size: var(--cf-text-2xs);
+  white-space: nowrap;
+}
+
+/* The word is always present; the colour is the third channel, never the only one. */
+.dp-badge--good {
+  color: var(--cf-success);
+  border-color: var(--cf-success);
+}
+
+.dp-badge--warn {
+  color: var(--cf-warn);
+  border-color: var(--cf-warn);
+}
+
+.dp-badge--crit {
+  color: var(--cf-danger);
+  border-color: var(--cf-danger);
+}
+
+.dp-badge--idle {
+  color: var(--cf-fg-mute);
+  border-color: var(--cf-line);
+}
+
+/* ---- states ----------------------------------------------------------- */
+
+.dp-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--cf-space-sm);
+  padding: var(--cf-space-2xl) var(--cf-space-lg);
+  border: 1px dashed var(--cf-line);
+  border-radius: var(--cf-radius);
+  text-align: center;
+  margin-bottom: var(--cf-space-lg);
+}
+
+.dp-state--failed {
+  border-style: solid;
+  border-color: var(--cf-danger);
+}
+
+.dp-state--forbidden {
+  border-style: solid;
+  border-color: var(--cf-warn);
+}
+
+.dp-state__icon {
+  font-size: var(--cf-text-2xl);
+  color: var(--cf-fg-mute);
+}
+
+.dp-state__title {
+  margin: 0;
+  font-size: var(--cf-text-lg);
+  color: var(--cf-fg);
+}
+
+.dp-state__hint {
+  margin: 0;
+  max-width: 60ch;
+  color: var(--cf-fg-dim);
+  font-size: var(--cf-text-sm);
+}
+
+.dp-state__meta {
+  margin: 0;
+  color: var(--cf-fg-mute);
+  font-size: var(--cf-text-xs);
+}
+
+.dp-state__action {
+  display: flex;
+  gap: var(--cf-space-sm);
+  flex-wrap: wrap;
+  justify-content: center;
+}
+
+.dp-reqid {
+  user-select: all;
+}
+
+.dp-spinner {
+  inline-size: var(--cf-space-lg);
+  block-size: var(--cf-space-lg);
+  border: 2px solid var(--cf-line);
+  border-top-color: var(--cf-accent);
+  border-radius: 50%;
+  animation: dp-spin 1s linear infinite;
+}
+
+@keyframes dp-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .dp-spinner {
+    animation-duration: 4s;
+  }
+}
+
+/* ---- notes ------------------------------------------------------------ */
+
+.dp-note {
+  display: flex;
+  gap: var(--cf-space-sm);
+  align-items: flex-start;
+  margin: 0 0 var(--cf-space-lg);
+  padding: var(--cf-space-md);
+  border: 1px solid var(--cf-line);
+  border-left-width: 3px;
+  border-radius: var(--cf-radius-sm);
+  background: var(--cf-bg-raised);
+  color: var(--cf-fg-dim);
+  font-size: var(--cf-text-sm);
+  max-width: 78ch;
+}
+
+.dp-note--info {
+  border-left-color: var(--cf-accent);
+}
+
+.dp-note--warn {
+  border-left-color: var(--cf-warn);
+}
+
+.dp-note--crit {
+  border-left-color: var(--cf-danger);
+}
+
+.dp-note__icon {
+  color: var(--cf-fg-mute);
+}
+
+/* ---- forms ------------------------------------------------------------ */
+
+.dp-form {
+  display: grid;
+  gap: var(--cf-space-md);
+  max-width: 46rem;
+  margin: 0 0 var(--cf-space-lg);
+  padding: var(--cf-space-lg);
+  border: 1px solid var(--cf-line);
+  border-radius: var(--cf-radius);
+  background: var(--cf-surface);
+  justify-items: start;
+}
+
+.dp-field {
+  display: grid;
+  gap: var(--cf-space-2xs);
+  inline-size: 100%;
+}
+
+.dp-field__label {
+  color: var(--cf-fg-mute);
+  font-size: var(--cf-text-xs);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.dp-field__help {
+  color: var(--cf-fg-mute);
+  font-size: var(--cf-text-xs);
+  max-width: 66ch;
+}
+
+.dp-input {
+  inline-size: 100%;
+  max-inline-size: 100%;
+  padding: var(--cf-space-sm);
+  border: 1px solid var(--cf-line-strong);
+  border-radius: var(--cf-radius-sm);
+  background: var(--cf-bg-sunken);
+  color: var(--cf-fg);
+  font-family: var(--cf-font-sans);
+  font-size: var(--cf-text-sm);
+}
+
+.dp-input:focus-visible {
+  outline: 2px solid var(--cf-accent);
+  outline-offset: 1px;
+}
+
+.dp-input--area {
+  min-block-size: 6rem;
+  font-family: var(--cf-font-mono);
+}
+
+.dp-fieldset {
+  display: grid;
+  gap: var(--cf-space-2xs);
+  inline-size: 100%;
+  border: 1px solid var(--cf-line);
+  border-radius: var(--cf-radius-sm);
+  padding: var(--cf-space-md);
+}
+
+.dp-check {
+  display: flex;
+  gap: var(--cf-space-xs);
+  align-items: baseline;
+  color: var(--cf-fg-dim);
+  font-size: var(--cf-text-sm);
+}
+
+.dp-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--cf-space-sm);
+  align-items: center;
+  margin-bottom: var(--cf-space-md);
+}
+
+.dp-confirm {
+  display: grid;
+  gap: var(--cf-space-sm);
+  padding: var(--cf-space-md);
+  border: 1px solid var(--cf-danger);
+  border-radius: var(--cf-radius-sm);
+  background: var(--cf-bg-raised);
+  max-inline-size: 34rem;
+}
+
+.dp-confirm__lead {
+  margin: 0;
+  color: var(--cf-fg);
+  font-size: var(--cf-text-sm);
+}
+
+.dp-details {
+  margin-top: var(--cf-space-md);
+}
+
+.dp-details__summary {
+  cursor: pointer;
+  color: var(--cf-fg-dim);
+  font-size: var(--cf-text-sm);
+}
+
+/* ---- usage meters ----------------------------------------------------- */
+
+.dp-windows {
+  margin-bottom: var(--cf-space-lg);
+}
+
+.dp-meters {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: var(--cf-space-sm);
+}
+
+.dp-meter {
+  display: grid;
+  grid-template-columns: minmax(12rem, 20rem) 1fr auto;
+  gap: var(--cf-space-sm);
+  align-items: center;
+  font-size: var(--cf-text-sm);
+  color: var(--cf-fg-dim);
+}
+
+.dp-meter__bar {
+  block-size: var(--cf-space-xs);
+  border-radius: var(--cf-radius-sm);
+  background: var(--cf-fg-mute);
+  min-inline-size: var(--cf-space-3xs);
+}
+
+.dp-meter__bar--good {
+  background: var(--cf-success);
+}
+
+.dp-meter__bar--warn {
+  background: var(--cf-warn);
+}
+
+.dp-meter__bar--crit {
+  background: var(--cf-danger);
+}
+
+.dp-meter__bar--idle {
+  background: var(--cf-fg-mute);
+}
+
+/* ---- the known gaps --------------------------------------------------- */
+
+.dp-gaps {
+  display: grid;
+  gap: var(--cf-space-lg);
+  margin: 0;
+}
+
+.dp-gap {
+  border-left: 3px solid var(--cf-warn);
+  padding-left: var(--cf-space-md);
+}
+
+.dp-gap__title {
+  font-size: var(--cf-text-md);
+  color: var(--cf-fg);
+  font-weight: 600;
+}
+
+.dp-gap__body {
+  margin: var(--cf-space-2xs) 0 0;
+  color: var(--cf-fg-dim);
+  font-size: var(--cf-text-sm);
+  max-width: 78ch;
+}
+
+.dp-gap__closes {
+  color: var(--cf-fg-dim);
+}
+
+.dp-gap__cites {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--cf-space-2xs);
+  font-size: var(--cf-text-2xs);
+  color: var(--cf-fg-mute);
+}
+
+/* ══════════════════════════════════════════════════════════════════════════
+ * THE SHOWN-ONCE DIALOG.
+ *
+ * Deliberately the loudest thing this application can draw. It covers the
+ * viewport, it takes the accent's glow, and it does not close by accident —
+ * every one of those is a property of what it is showing rather than a
+ * decoration. See src/components/once.tsx.
+ * ══════════════════════════════════════════════════════════════════════════ */
+
+.dp-once__scrim {
+  position: fixed;
+  inset: 0;
+  z-index: 200;
+  display: grid;
+  place-items: center;
+  padding: var(--cf-space-lg);
+  /* The ash ramp's deepest step rather than a translucent literal: the page behind must not read
+     as merely dimmed, because it is not merely dimmed — it is unreachable until this is dealt
+     with. */
+  background: var(--cf-ash-950);
+  overflow-y: auto;
+}
+
+.dp-once {
+  inline-size: 100%;
+  max-inline-size: 44rem;
+  padding: var(--cf-space-xl);
+  border: 1px solid var(--cf-accent);
+  border-radius: var(--cf-radius-lg);
+  background: var(--cf-surface-solid);
+  box-shadow: var(--cf-shadow-lg);
+}
+
+.dp-once:focus-visible {
+  outline: 2px solid var(--cf-accent);
+  outline-offset: 2px;
+}
+
+.dp-once__flag {
+  margin: 0;
+  font-size: var(--cf-text-2xl);
+  color: var(--cf-accent);
+}
+
+.dp-once__title {
+  margin: 0 0 var(--cf-space-sm);
+  font-family: var(--cf-font-display);
+  font-size: var(--cf-text-xl);
+  color: var(--cf-fg);
+}
+
+.dp-once__note {
+  margin: 0 0 var(--cf-space-md);
+  padding: var(--cf-space-md);
+  border: 1px solid var(--cf-warn);
+  border-radius: var(--cf-radius-sm);
+  color: var(--cf-fg);
+  font-size: var(--cf-text-sm);
+}
+
+.dp-once__label,
+.dp-once__extra {
+  margin: 0 0 var(--cf-space-md);
+  color: var(--cf-fg-dim);
+  font-size: var(--cf-text-sm);
+}
+
+.dp-once__value {
+  display: flex;
+  gap: var(--cf-space-sm);
+  margin-bottom: var(--cf-space-md);
+}
+
+.dp-once__secret {
+  flex: 1;
+  min-inline-size: 0;
+  padding: var(--cf-space-sm);
+  border: 1px solid var(--cf-line-strong);
+  border-radius: var(--cf-radius-sm);
+  background: var(--cf-bg-sunken);
+  color: var(--cf-fg);
+  font-family: var(--cf-font-mono);
+  font-size: var(--cf-text-sm);
+}
+
+.dp-once__confirm {
+  display: flex;
+  gap: var(--cf-space-xs);
+  align-items: baseline;
+  margin-bottom: var(--cf-space-md);
+  color: var(--cf-fg-dim);
+  font-size: var(--cf-text-sm);
+}
+
+.dp-once__actions {
+  display: grid;
+  gap: var(--cf-space-sm);
+  justify-items: start;
+}
+
+.dp-once__hint {
+  margin: 0;
+  color: var(--cf-warn);
+  font-size: var(--cf-text-xs);
+}
+
+/* ---- buttons ---------------------------------------------------------- */
+
+/*
+ * `.cf-btn` is the design system's. These modifiers are this app's, because ui.css ships
+ * `.cf-btn` and `.cf-btn--ember` only — there is no `--primary` or `--danger` upstream, and using
+ * a class the design system does not define would render an unstyled button rather than fail.
+ * Checked against `ui/packages/ui/src/ui.css:116-168` rather than assumed.
+ */
+.cf-btn--primary {
+  border-color: var(--cf-accent);
+  background: var(--cf-accent);
+  color: var(--cf-accent-ink);
+}
+
+.cf-btn--primary:hover:not(:disabled) {
+  background: var(--cf-accent-hover);
+  border-color: var(--cf-accent-hover);
+}
+
+.cf-btn--danger {
+  border-color: var(--cf-danger);
+  color: var(--cf-danger);
+}
+
+.cf-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* ---- responsive ------------------------------------------------------- */
+
+@media (max-width: 40rem) {
+  .dp-main {
+    padding: var(--cf-space-xl) var(--cf-space-lg) var(--cf-space-2xl);
+  }
+
+  .dp-meter {
+    grid-template-columns: 1fr;
+  }
+
+  .dp-once__value {
+    flex-direction: column;
+  }
+}

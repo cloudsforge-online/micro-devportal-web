@@ -1,0 +1,1014 @@
+/**
+ * The `devplatform` surface, as this app is allowed to use it.
+ *
+ * ══════════════════════════════════════════════════════════════════════════════════════════════
+ * EVERY ROUTE BELOW WAS READ OUT OF `devplatform/src/server.ts`, ONE AT A TIME, AND CARRIES THE
+ * LINE IT WAS READ FROM.
+ *
+ * Not inferred from a sibling client, and not copied from `@cloudsforge/sdk` — which could not
+ * have supplied it anyway: `sdk/openapi.json` carries 52 paths and **not one of them belongs to
+ * devplatform**. The public SDK and the `cloudsforge` CLI cannot issue, list or revoke a key, and
+ * they say so themselves (`sdk/packages/sdk/src/credentials.ts` and `sdk/packages/cli/src/run.ts`
+ * both record "devplatform does not exist yet"). It does exist. That is reported, not worked
+ * around here.
+ *
+ * `devplatform` registers its routes through one `define(method, path, handler)` list
+ * (`devplatform/src/server.ts:574-1256`), so the surface is enumerable and the citations are
+ * stable. `test/devplatform.test.ts` reads that file and fails if any line below is not the line
+ * that registers the route, and CI bends a citation to prove the check can go red.
+ *
+ * ══════════════════════════════════════════════════════════════════════════════════════════════
+ * **HOW EACH ROUTE AUTHENTICATES — NOT MERELY WHETHER, AND THIS SERVICE IS WHY.**
+ *
+ * There is no middleware. `handle()` (`devplatform/src/server.ts:373-418`) dispatches straight
+ * into each route's own closure, so authentication is whatever that closure calls. And **not one
+ * of the 31 `/v1` handlers contains a literal `await authenticate(ctx, deps)`.** That call appears
+ * exactly three times in the whole file and never inside a route:
+ *
+ *   * `authenticateUser`   — `devplatform/src/server.ts:473`
+ *   * `authenticateKeyOnly`— `devplatform/src/server.ts:480`
+ *   * `authoriseProject`   — `devplatform/src/server.ts:516`
+ *
+ * `micro-worlds-web`'s route test greps each handler body for `await authenticate(ctx, deps)` and
+ * asserts a boolean. Run against this service that check declares **all thirty-one routes public**,
+ * including the twenty-five that are not — a client built on its answer would put no bearer on a
+ * key-issuing route and would put the credential screens outside the session gate. So the table
+ * below records the MECHANISM, one of six, and `test/devplatform.test.ts` matches the handler
+ * against the mechanism rather than against a boolean.
+ *
+ * The six, and what each admits:
+ *
+ *   `none`        No credential is read. The handler takes no principal.
+ *   `key`         `authenticateKeyOnly` — an API key ONLY. A user JWT is a 403 (`:481`).
+ *   `user+admin`  `authenticateUser` plus `permits(role, ADMIN_ROLES)` against identity (`:644`).
+ *   `org:read` / `org:write`
+ *                 `authoriseOrg(ctx, deps, id, …)` (`:537`) — a USER token only (`:543`), whose
+ *                 role in the identity organisation is asked of identity per request.
+ *   `project:read` / `project:write`
+ *                 `authoriseProject(ctx, deps, id, …)` (`:510`) — a user token OR an API key. A
+ *                 key may act only within its own project, because the project id is read from the
+ *                 ROW and never from the request (`:522-527`).
+ *   `hmac`        A signature over the raw bytes, checked before `JSON.parse` (`:1176-1182`).
+ *
+ * ── CALLED ────────────────────────────────────────────────────────────────────────────────────
+ *
+ * | Method   | Path                                       | Authenticates   | Verified at                       |
+ * | -------- | ------------------------------------------ | --------------- | --------------------------------- |
+ * | `GET`    | `/v1/scopes`                               | **none**        | `devplatform/src/server.ts:604`   |
+ * | `POST`   | `/v1/organisations`                        | `user+admin`    | `devplatform/src/server.ts:637`   |
+ * | `GET`    | `/v1/organisations/:id`                    | `org:read`      | `devplatform/src/server.ts:655`   |
+ * | `GET`    | `/v1/organisations/:id/projects`           | `org:read`      | `devplatform/src/server.ts:663`   |
+ * | `POST`   | `/v1/projects`                             | `org:write`     | `devplatform/src/server.ts:671`   |
+ * | `GET`    | `/v1/projects/:id`                         | `project:read`  | `devplatform/src/server.ts:694`   |
+ * | `POST`   | `/v1/projects/:id/service-accounts`        | `project:write` | `devplatform/src/server.ts:706`   |
+ * | `GET`    | `/v1/projects/:id/service-accounts`        | `project:read`  | `devplatform/src/server.ts:717`   |
+ * | `POST`   | `/v1/projects/:id/keys`                    | `project:write` | `devplatform/src/server.ts:736`   |
+ * | `GET`    | `/v1/projects/:id/keys`                    | `project:read`  | `devplatform/src/server.ts:790`   |
+ * | `DELETE` | `/v1/keys/:id`                             | `project:write` | `devplatform/src/server.ts:812`   |
+ * | `GET`    | `/v1/projects/:id/quotas`                  | `project:read`  | `devplatform/src/server.ts:856`   |
+ * | `GET`    | `/v1/projects/:id/usage`                   | `project:read`  | `devplatform/src/server.ts:866`   |
+ * | `POST`   | `/v1/projects/:id/webhook-endpoints`       | `project:write` | `devplatform/src/server.ts:876`   |
+ * | `GET`    | `/v1/projects/:id/webhook-endpoints`       | `project:read`  | `devplatform/src/server.ts:907`   |
+ * | `POST`   | `/v1/webhook-endpoints/:id/rotate-secret`  | `project:write` | `devplatform/src/server.ts:916`   |
+ * | `POST`   | `/v1/webhook-endpoints/:id/disable`        | `project:write` | `devplatform/src/server.ts:937`   |
+ * | `DELETE` | `/v1/webhook-endpoints/:id`                | `project:write` | `devplatform/src/server.ts:947`   |
+ * | `GET`    | `/v1/webhook-endpoints/:id/deliveries`     | `project:read`  | `devplatform/src/server.ts:956`   |
+ * | `POST`   | `/v1/projects/:id/oauth-clients`           | `project:write` | `devplatform/src/server.ts:966`   |
+ * | `GET`    | `/v1/projects/:id/oauth-clients`           | `project:read`  | `devplatform/src/server.ts:1003`  |
+ * | `DELETE` | `/v1/oauth-clients/:id`                    | `project:write` | `devplatform/src/server.ts:1008`  |
+ * | `GET`    | `/v1/apps`                                 | **none**        | `devplatform/src/server.ts:1022`  |
+ * | `GET`    | `/v1/apps/:slug`                           | **none**        | `devplatform/src/server.ts:1027`  |
+ * | `PUT`    | `/v1/projects/:id/application`             | `project:write` | `devplatform/src/server.ts:1034`  |
+ * | `GET`    | `/v1/projects/:id/application`             | `project:read`  | `devplatform/src/server.ts:1048`  |
+ * | `POST`   | `/v1/projects/:id/application/submit`      | `project:write` | `devplatform/src/server.ts:1056`  |
+ *
+ * ── DECLINED, EACH FOR A STATED REASON ────────────────────────────────────────────────────────
+ *
+ * Declined is a first-class entry rather than an omission: `test/devplatform.test.ts` requires
+ * this file to account for EVERY `/v1` route the service registers, so a route that grows and is
+ * never read cannot go quiet.
+ *
+ * | Method | Path                          | Verified at                      | Why not here |
+ * | ------ | ----------------------------- | -------------------------------- | ------------ |
+ * | `GET`  | `/v1/keys/self`               | `devplatform/src/server.ts:624`  | The whoami for a MACHINE credential. `authenticateKeyOnly` (`:625`, `:479-483`) refuses anything that is not a `cfk_…` string, so the user JWT this bundle holds is a 403 — and the only way to satisfy it would be for a browser to hold a live API key, which is the one thing this product exists to stop happening. It is the SDK's route, not the console's. |
+ * | `GET`  | `/v1/keys/:id`                | `devplatform/src/server.ts:797`  | It answers the identical `ApiKeySummary` (`devplatform/src/apikeys.ts:136-155`) that `GET /v1/projects/:id/keys` already returns for every key in the project, and this app has no per-key address. A second read of a row the console is already holding is a request that can only disagree with itself. |
+ * | `PUT`  | `/v1/projects/:id/quotas`     | `devplatform/src/server.ts:836`  | **A control this console must not draw.** It is `project:write` (`:837`), and `setQuota` accepts any whole number ≥ 1 with no ceiling (`devplatform/src/quotas.ts:112-126`) — so an owner of a project may set their own rate limit to any value they like. A "raise my limit" button in a customer console makes the platform's quota advisory. Reported; the route belongs to the operator console, which is where a limit is a decision somebody else makes. |
+ * | `POST` | `/v1/events`                  | `devplatform/src/server.ts:1175` | The internal inbox. It is HMAC-checked over the exact bytes received BEFORE `JSON.parse` (`:1176-1182`) against `DEVPLATFORM_INGEST_SECRETS`. A browser cannot hold that secret, and a bundle that shipped it would BE the revoke-anybody's-credentials endpoint the check exists to prevent (`devplatform/src/env.ts:140-146`). |
+ *
+ * `/livez` (`:577`), `/readyz` (`:579`) and `/metrics` (`:584`) are served as well, and so are
+ * three `/internal` routes — `POST /internal/keys/verify` (`:1076`), `POST /internal/oauth/verify`
+ * (`:1096`) and `POST /internal/usage` (`:1130`). None is reachable from a browser:
+ * `deploy/gateway/dynamic/policy.yml:100-102` refuses any path matching `^/+internal(/|$)` at
+ * priority 100000 and routes it to an unreachable upstream. They are not wrapped here and they are
+ * not in the tables above, which cover `/v1` only.
+ * ══════════════════════════════════════════════════════════════════════════════════════════════
+ *
+ * ── A SECRET IS SHOWN ONCE, AND THE DATABASE IS WHAT MAKES THAT TRUE ──────────────────────────
+ *
+ * Four routes return a credential, and each returns it exactly once:
+ *
+ *   * `POST /v1/projects/:id/keys` → `secretKey`, plus the service's own sentence in `note`
+ *     (`devplatform/src/server.ts:776-787`)
+ *   * `POST /v1/projects/:id/webhook-endpoints` → `secret` (`:904`)
+ *   * `POST /v1/webhook-endpoints/:id/rotate-secret` → `secret` (`:934`)
+ *   * `POST /v1/projects/:id/oauth-clients` → `clientSecret` (`:1000`)
+ *
+ * **There is no route that returns any of them a second time, and for an API key there is no
+ * column one could be read back from.** `api_keys` has no secret column at all: `secret_algo`,
+ * `secret_salt` and `secret_hash` are a one-way function of the key, and the CHECK constraint
+ * `api_keys_slow_kdf_only` (`devplatform/src/migrations.ts:189`) refuses any row whose recorded
+ * algorithm is not a scrypt encoding — `^scrypt\$N=…,r=…,p=…,keyLen=…$`. `oauth_clients` carries
+ * the same constraint (`devplatform/src/migrations.ts:229`). The comment above it says what it is
+ * for in one line: "the day someone reaches for createHash because it is one line shorter, this is
+ * what stops it" (`devplatform/src/migrations.ts:186-188`).
+ *
+ * So this app may never draw a "show key" control, a "reveal" toggle or a "copy again" affordance,
+ * and it may never word a message as though the secret could be recovered by support. It cannot
+ * be, by anybody, including the people who run the platform. `src/components/once.tsx` is how that
+ * is presented, and `test/render.test.ts` refuses the vocabulary that would imply otherwise.
+ *
+ * **The one honest exception, stated rather than hidden.** A webhook signing secret IS stored
+ * recoverably, because HMAC is not a one-way function of an input the service does not have:
+ * signing a delivery requires the secret itself (`devplatform/src/migrations.ts:44-51`). It is
+ * still shown once — no route returns it afterwards (`devplatform/src/webhooks.ts:147`) — and
+ * rotation keeps the old one verifying for an overlap window. This app says that, in those words,
+ * rather than implying a webhook secret is hashed like a key.
+ *
+ * ── A REPLAY RETURNS `null` WHERE THE SECRET WAS, AND THAT IS SUCCESS, NOT FAILURE ────────────
+ *
+ * All four are wrapped in `withIdempotentRoute`, and the stored idempotency response deliberately
+ * carries the METADATA only. The secret is re-attached to the FIRST response and nowhere else
+ * (`devplatform/src/server.ts:731-734`), so a replay answers `200` with `replayed: true` and
+ * `secretKey: null`. A client that read the null as an error would tell a developer their key had
+ * failed to be created when it exists and is live. Every one of the four wrappers below returns
+ * the null verbatim, and the screens render it as what it is.
+ */
+import { api } from './api.ts'
+import { idempotently } from './idempotency.ts'
+
+/* ══════════════════════════════ the wire shapes ══════════════════════════════ */
+
+/** `devplatform/src/orgs.ts:82-89`. A developer organisation is an ENROLMENT of an identity one. */
+export interface DeveloperOrg {
+  readonly id: string
+  readonly identityOrgId: string
+  readonly name: string
+  readonly slug: string
+  readonly status: 'active' | 'suspended'
+  readonly createdAt: string
+}
+
+/** `devplatform/src/keys.ts:133`. Two environments, and both are ROWS — see `Environment`. */
+export const KEY_ENVIRONMENTS = ['live', 'test'] as const
+export type KeyEnvironment = (typeof KEY_ENVIRONMENTS)[number]
+
+/** `devplatform/src/orgs.ts:196-200`. */
+export interface Environment {
+  readonly id: string
+  readonly projectId: string
+  readonly name: KeyEnvironment
+}
+
+/**
+ * `devplatform/src/orgs.ts:202-210`.
+ *
+ * A project is created WITH both environments in one transaction (`devplatform/src/orgs.ts:261-272`)
+ * and with its default quotas in the same commit (`devplatform/src/server.ts:683-688`), so there is
+ * no state in which a project exists with nowhere to put a key or with an unmetered first request.
+ */
+export interface Project {
+  readonly id: string
+  readonly orgId: string
+  readonly name: string
+  readonly slug: string
+  readonly status: 'active' | 'archived'
+  readonly createdAt: string
+  readonly environments: readonly Environment[]
+}
+
+/** `devplatform/src/apikeys.ts:54-61`. */
+export interface ServiceAccount {
+  readonly id: string
+  readonly projectId: string
+  readonly name: string
+  readonly description: string
+  readonly disabledAt: string | null
+  readonly createdAt: string
+}
+
+/**
+ * What a key looks like to everyone after the moment it is created —
+ * `devplatform/src/apikeys.ts:136-155`.
+ *
+ * **There is no `secret`, no `secretKey` and no `hash` field on this type, in the service or
+ * here.** `display` is `cfk_<environment>_<lookup>` and is safe in a log, a list and a support
+ * ticket; it is also what a revocation is quoted by.
+ */
+export interface ApiKeySummary {
+  readonly id: string
+  readonly projectId: string
+  readonly environmentId: string
+  readonly environment: KeyEnvironment
+  readonly serviceAccountId: string | null
+  readonly display: string
+  readonly lookupId: string
+  readonly name: string
+  readonly scopes: readonly string[]
+  readonly createdBy: string
+  readonly createdAt: string
+  readonly lastUsedAt: string | null
+  readonly expiresAt: string | null
+  readonly revokedAt: string | null
+  readonly revokedReason: string | null
+}
+
+/** One entry of the public scope vocabulary — `devplatform/src/scopes.ts:58-65`. */
+export interface ScopeSpec {
+  readonly name: string
+  readonly service: string
+  readonly kind: 'read' | 'write'
+  readonly description: string
+}
+
+/** `devplatform/src/webhooks.ts:59-68`. */
+export interface WebhookEndpoint {
+  readonly id: string
+  readonly projectId: string
+  readonly environmentId: string
+  readonly url: string
+  readonly topics: readonly string[]
+  readonly description: string
+  readonly disabledAt: string | null
+  readonly createdAt: string
+}
+
+/** `devplatform/src/webhooks.ts:326-337`. */
+export interface Delivery {
+  readonly id: string
+  readonly endpointId: string
+  readonly eventId: string
+  readonly topic: string
+  readonly payload: Record<string, unknown>
+  readonly attempts: number
+  readonly deliveredAt: string | null
+  readonly lastStatus: number | null
+  readonly lastError: string | null
+  readonly nextAttemptAt: string
+}
+
+/** `devplatform/src/oauth.ts:56-65`. The secret is not on this type; see the header. */
+export interface OAuthClient {
+  readonly id: string
+  readonly projectId: string
+  readonly clientId: string
+  readonly name: string
+  readonly redirectUris: readonly string[]
+  readonly scopes: readonly string[]
+  readonly createdAt: string
+  readonly revokedAt: string | null
+}
+
+/** `devplatform/src/quotas.ts:47`. Four windows; `minute` is the burst control, `month` the plan. */
+export const PERIODS = ['minute', 'hour', 'day', 'month'] as const
+export type Period = (typeof PERIODS)[number]
+
+/** `devplatform/src/quotas.ts:57-64`. */
+export interface Quota {
+  readonly id: string
+  readonly projectId: string
+  readonly environmentId: string
+  readonly meter: string
+  readonly period: Period
+  readonly maxUnits: number
+}
+
+/** One live window, as `currentUsage` renders it — `devplatform/src/quotas.ts:393`. */
+export interface QuotaWindow {
+  readonly period: Period
+  readonly used: number
+  readonly limit: number
+}
+
+/**
+ * An hourly usage bucket — `devplatform/src/quotas.ts:322-328`.
+ *
+ * `GET /v1/projects/:id/usage` reads `usage_rollups`, never the raw events
+ * (`devplatform/src/quotas.ts:357-386`). Raw events are pruned at 35 days and the rollups at 400
+ * (`devplatform/src/env.ts:183-184`), so a gap in this list at the older end is retention rather
+ * than a quiet week — and `devplatform/src/env.ts:185-194` refuses a configuration that would let
+ * a rollup expire before the events it summarises.
+ */
+export interface UsageRollup {
+  readonly environmentId: string
+  readonly route: string
+  readonly bucket: string
+  readonly calls: number
+  readonly errors: number
+}
+
+/** `devplatform/src/applications.ts:23`. */
+export const APPLICATION_STATUSES = ['draft', 'in_review', 'listed', 'delisted'] as const
+export type ApplicationStatus = (typeof APPLICATION_STATUSES)[number]
+
+/** `devplatform/src/applications.ts:30-41`. */
+export interface Application {
+  readonly id: string
+  readonly projectId: string
+  readonly slug: string
+  readonly name: string
+  readonly tagline: string
+  readonly description: string
+  readonly homepageUrl: string | null
+  readonly status: ApplicationStatus
+  readonly listedAt: string | null
+  readonly createdAt: string
+}
+
+/* ══════════════════════════════ the public calls ══════════════════════════════ */
+
+/**
+ * `GET /v1/scopes` — `devplatform/src/server.ts:604`.
+ *
+ * **Makes no authentication call of any kind**, and `devplatform/src/server.ts:600-603` says why:
+ * the vocabulary "is a property of the platform rather than of any customer, and a developer
+ * choosing scopes before they have a key is exactly who needs it". Sent with `auth: false` — not
+ * because a token would be refused, but because attaching one to a route that never asked for it
+ * is how a client ends up reasoning about the wrong failure.
+ *
+ * `wildcard` is `null` and the `note` says there is no wildcard scope. Both are on the wire on
+ * purpose (`:608-610`): "I'll just use the wildcard" is the first thing a developer tries, and a
+ * wildcard is refused at issuance (`devplatform/src/scopes.ts:195-201`) AND by the database
+ * (`devplatform/src/migrations.ts:195`).
+ */
+export interface ScopeVocabulary {
+  readonly scopes: readonly ScopeSpec[]
+  readonly wildcard: null
+  readonly note: string
+}
+
+export function getScopes(signal?: AbortSignal): Promise<ScopeVocabulary> {
+  return api<ScopeVocabulary>('/v1/scopes', { auth: false, ...(signal ? { signal } : {}) })
+}
+
+/**
+ * `GET /v1/apps` — `devplatform/src/server.ts:1022`.
+ *
+ * **Public.** `listDirectory` filters to `status = 'listed'` INSIDE the query rather than at the
+ * caller (`devplatform/src/applications.ts:201-204`), so a draft listing — including one written
+ * to probe what the directory will render — cannot reach this response by a caller forgetting a
+ * filter. `limit` is clamped to 500 (`:1024`).
+ */
+export function listDirectory(
+  opts: { limit?: number; signal?: AbortSignal } = {},
+): Promise<{ applications: readonly Application[] }> {
+  return api<{ applications: readonly Application[] }>('/v1/apps', {
+    auth: false,
+    ...(opts.limit ? { query: { limit: opts.limit } } : {}),
+    ...(opts.signal ? { signal: opts.signal } : {}),
+  })
+}
+
+/**
+ * `GET /v1/apps/:slug` — `devplatform/src/server.ts:1027`.
+ *
+ * **Public**, and it answers 404 for anything not `listed`: `findListedApplication` carries the
+ * status filter in its own query (`devplatform/src/applications.ts:181-187`). So a 404 here means
+ * "there is no listed application at that slug" and never "you may not see it" — this app must not
+ * render it as a permission failure.
+ */
+export function getApplicationBySlug(
+  slug: string,
+  signal?: AbortSignal,
+): Promise<{ application: Application }> {
+  return api<{ application: Application }>(`/v1/apps/${encodeURIComponent(slug)}`, {
+    auth: false,
+    ...(signal ? { signal } : {}),
+  })
+}
+
+/* ══════════════════════════════ organisations ══════════════════════════════ */
+
+/**
+ * `POST /v1/organisations` — `devplatform/src/server.ts:637`.
+ *
+ * **This is also the only way to LOOK UP a developer organisation, and that is a finding rather
+ * than a design.** The service serves no `GET /v1/organisations`, and no route resolves an
+ * identity organisation id to a developer one: `findOrgByIdentityId`
+ * (`devplatform/src/orgs.ts:162`) exists but is called only by the event inbox
+ * (`devplatform/src/server.ts:1227`). `GET /v1/organisations/:id` wants the DEVELOPER org id,
+ * which a console that has never enrolled has no way to learn.
+ *
+ * Enrolment is idempotent on `identity_org_id` by construction — `on conflict do nothing` then
+ * read (`devplatform/src/orgs.ts:126-141`) — so re-posting it IS the lookup, and that is why the
+ * route is exempt from the idempotency wrapper (`devplatform/src/routeidempotency.test.ts:35-37`).
+ * This app therefore sends no `Idempotency-Key` here, and calls it on the organisation screen to
+ * resolve an identity organisation the signed-in user already administers.
+ *
+ * **The caller must already be an owner or an admin of the identity organisation.** The role is
+ * asked of identity per request with the user's own token forwarded (`:644-645`), so this is not a
+ * claim the browser makes. Without that check any authenticated user could enrol any organisation
+ * id they could guess and become the owner of its developer platform presence — the comment at
+ * `:641-643` says exactly that.
+ *
+ * `name` and `slug` are only used on the FIRST enrolment. A second call with a different name
+ * returns the original row unchanged, because `do nothing` did nothing — so this screen must never
+ * present enrolment as a way to rename.
+ */
+export interface EnrolInput {
+  readonly identityOrgId: string
+  readonly name: string
+  readonly slug: string
+}
+
+export function enrolOrganisation(input: EnrolInput): Promise<{ organisation: DeveloperOrg }> {
+  return api<{ organisation: DeveloperOrg }>('/v1/organisations', { method: 'POST', body: input })
+}
+
+/**
+ * `GET /v1/organisations/:id` — `devplatform/src/server.ts:655`.
+ *
+ * `authoriseOrg(ctx, deps, id, 'read')` (`:657`), which is a USER token only (`:543`) and any of
+ * the five organisation roles (`devplatform/src/membership.ts:56`). A caller with no role gets
+ * **404, not 403** (`:546`) — the same answer as an id that does not exist, on purpose, so
+ * developer organisation ids are not enumerable across customers. This app must therefore never
+ * render a 404 here as "that organisation belongs to somebody else".
+ */
+export function getOrganisation(
+  id: string,
+  signal?: AbortSignal,
+): Promise<{ organisation: DeveloperOrg }> {
+  return api<{ organisation: DeveloperOrg }>(`/v1/organisations/${encodeURIComponent(id)}`, {
+    ...(signal ? { signal } : {}),
+  })
+}
+
+/** `GET /v1/organisations/:id/projects` — `devplatform/src/server.ts:663`. `org:read`, as above. */
+export function listProjects(
+  orgId: string,
+  signal?: AbortSignal,
+): Promise<{ projects: readonly Project[] }> {
+  return api<{ projects: readonly Project[] }>(
+    `/v1/organisations/${encodeURIComponent(orgId)}/projects`,
+    { ...(signal ? { signal } : {}) },
+  )
+}
+
+/**
+ * `POST /v1/projects` — `devplatform/src/server.ts:671`.
+ *
+ * `authoriseOrg(ctx, deps, orgId, 'write')` (`:674`) — owner or admin only
+ * (`devplatform/src/membership.ts:53`), and the organisation id comes from the BODY rather than the
+ * path (`:673`).
+ *
+ * **Wrapped, so an `Idempotency-Key` is required and a POST without one is a 400.** The project,
+ * its two environments and its default quotas are one commit (`:683-688`): "a project that exists
+ * with no quota row is a project whose first request is unmetered".
+ */
+export interface CreateProjectInput {
+  readonly orgId: string
+  readonly name: string
+  readonly slug: string
+}
+
+export function createProject(
+  input: CreateProjectInput,
+  key: string,
+): Promise<{ project: Project; replayed: boolean }> {
+  return api<{ project: Project; replayed: boolean }>('/v1/projects', {
+    method: 'POST',
+    body: input,
+    headers: idempotently(key),
+  })
+}
+
+/* ══════════════════════════════ one project ══════════════════════════════ */
+
+/**
+ * `GET /v1/projects/:id` — `devplatform/src/server.ts:694`.
+ *
+ * `authoriseProject(ctx, deps, id, 'read')`. A project the caller cannot see is **404 rather than
+ * 403** (`:518-520`): "A 403 confirms the id exists, which makes project ids enumerable across
+ * customers."
+ */
+export function getProject(id: string, signal?: AbortSignal): Promise<{ project: Project }> {
+  return api<{ project: Project }>(`/v1/projects/${encodeURIComponent(id)}`, {
+    ...(signal ? { signal } : {}),
+  })
+}
+
+/**
+ * `POST /v1/projects/:id/service-accounts` — `devplatform/src/server.ts:706`.
+ *
+ * Not wrapped, and the reason is a constraint rather than a hope: `service_accounts_name_uniq`
+ * makes `(project, name)` the natural key and `createServiceAccount` is `on conflict do nothing`
+ * then read, so a retry returns the FIRST account rather than creating a second
+ * (`devplatform/src/server.ts:701-705`). This client sends no `Idempotency-Key` here; the service
+ * reads none on this route and would answer 400 for a header it does not want only if the wrapper
+ * were present, which it is not.
+ */
+export function createServiceAccount(
+  projectId: string,
+  input: { name: string; description?: string },
+): Promise<{ serviceAccount: ServiceAccount }> {
+  return api<{ serviceAccount: ServiceAccount }>(
+    `/v1/projects/${encodeURIComponent(projectId)}/service-accounts`,
+    { method: 'POST', body: input },
+  )
+}
+
+/** `GET /v1/projects/:id/service-accounts` — `devplatform/src/server.ts:717`. `project:read`. */
+export function listServiceAccounts(
+  projectId: string,
+  signal?: AbortSignal,
+): Promise<{ serviceAccounts: readonly ServiceAccount[] }> {
+  return api<{ serviceAccounts: readonly ServiceAccount[] }>(
+    `/v1/projects/${encodeURIComponent(projectId)}/service-accounts`,
+    { ...(signal ? { signal } : {}) },
+  )
+}
+
+/* ══════════════════════════════ keys ══════════════════════════════ */
+
+/**
+ * `POST /v1/projects/:id/keys` — `devplatform/src/server.ts:736`.
+ *
+ * **The one route in this service that returns a usable credential**, and the one place in this
+ * app where a secret is ever held in memory.
+ *
+ * `project:write`. Wrapped, so an `Idempotency-Key` is REQUIRED and the wrapper is load-bearing
+ * rather than decorative — `devplatform/src/server.ts:727-731`: "a double-clicked 'Create key'
+ * without it mints two credentials, and the second is one the developer never sees and therefore
+ * never revokes — a live key with no owner."
+ *
+ * ── The three fields of the answer, and why each matters ──────────────────────────────────────
+ *
+ *   `key`        the `ApiKeySummary`. Always present.
+ *   `secretKey`  the full `cfk_…` string, or **null on a replay** (`:773-780`). Null is a success:
+ *                the work did not run because it had already run, and the secret was shown then.
+ *   `note`       the service's own sentence, attached only when a secret was actually minted
+ *                (`:781-785`): "This is the only time this secret is shown. It is stored under
+ *                scrypt and cannot be recovered." It is rendered VERBATIM rather than paraphrased.
+ *   `replayed`   `true` when the stored response was returned (`:1317`).
+ *
+ * ── What the request may carry ────────────────────────────────────────────────────────────────
+ *
+ * `environment` must be `live` or `test` (`:739`, `devplatform/src/keys.ts:137`). `scopes` is an
+ * array of strings and is REFUSED rather than filtered if any is unknown
+ * (`devplatform/src/scopes.ts:195-201`) — a caller told "created" for a key missing an authority it
+ * asked for would discover otherwise at the worst possible moment. An EMPTY scope array is legal
+ * and produces a completely inert credential (`devplatform/src/scopes.ts:12-16`), which is worth
+ * offering: it is provable that a key can exist and grant nothing.
+ *
+ * The idempotency fingerprint is `{projectId, environment, scopes, name}` (`:748`), so changing the
+ * name and retrying with the SAME key is a 409 `idempotency_key_reuse` rather than a second key.
+ * See src/lib/idempotency.ts for when the key is kept and when it is thrown away.
+ */
+export interface IssueKeyInput {
+  readonly environment: KeyEnvironment
+  readonly scopes: readonly string[]
+  readonly name?: string
+  readonly serviceAccountId?: string | null
+  /** ISO 8601. `devplatform/src/server.ts:759` parses it and 400s on anything else. */
+  readonly expiresAt?: string | null
+}
+
+export interface IssuedKey {
+  readonly key: ApiKeySummary
+  /** Null on a replay. NEVER an error, and never persisted anywhere by this app. */
+  readonly secretKey: string | null
+  /** The service's own sentence, present only when a secret was minted. */
+  readonly note?: string
+  readonly replayed: boolean
+}
+
+export function issueKey(projectId: string, input: IssueKeyInput, key: string): Promise<IssuedKey> {
+  return api<IssuedKey>(`/v1/projects/${encodeURIComponent(projectId)}/keys`, {
+    method: 'POST',
+    body: input,
+    headers: idempotently(key),
+  })
+}
+
+/**
+ * `GET /v1/projects/:id/keys` — `devplatform/src/server.ts:790`.
+ *
+ * `project:read`. Revoked keys are EXCLUDED unless `includeRevoked=true`, and only the exact
+ * string `'true'` turns it on (`:792`). A revoked key is kept for ever rather than deleted — the
+ * row is the record that a credential existed — so this app offers the toggle instead of hiding
+ * the history.
+ */
+export function listKeys(
+  projectId: string,
+  opts: { includeRevoked?: boolean; signal?: AbortSignal } = {},
+): Promise<{ keys: readonly ApiKeySummary[] }> {
+  return api<{ keys: readonly ApiKeySummary[] }>(
+    `/v1/projects/${encodeURIComponent(projectId)}/keys`,
+    {
+      ...(opts.includeRevoked ? { query: { includeRevoked: 'true' } } : {}),
+      ...(opts.signal ? { signal: opts.signal } : {}),
+    },
+  )
+}
+
+/**
+ * `DELETE /v1/keys/:id` — `devplatform/src/server.ts:812`.
+ *
+ * `project:write`, resolved from the KEY's own project row rather than from the request (`:816`).
+ *
+ * Idempotent by definition and by claim: `revokeApiKey` updates `where revoked_at is null`, so a
+ * second call preserves the first call's time and reason and emits no second event (`:805-808`).
+ * The answer says which happened — `alreadyRevoked` — and this app renders the difference rather
+ * than reporting both as "done".
+ *
+ * `reason` is a QUERY parameter, not a body field (`:817`). Revocation is immediate here; the
+ * edge is where it becomes immediate for a caller, and `11-data-and-contract-strategy.md:363`
+ * records a 30-second validation cache there (`:809-810`). This app says that number rather than
+ * implying the key stops working in the same instant everywhere.
+ */
+export function revokeKey(
+  id: string,
+  reason: string,
+): Promise<{ key: ApiKeySummary; alreadyRevoked: boolean }> {
+  return api<{ key: ApiKeySummary; alreadyRevoked: boolean }>(
+    `/v1/keys/${encodeURIComponent(id)}`,
+    { method: 'DELETE', ...(reason ? { query: { reason } } : {}) },
+  )
+}
+
+/* ══════════════════════════════ quotas and usage ══════════════════════════════ */
+
+/**
+ * `GET /v1/projects/:id/quotas` — `devplatform/src/server.ts:856`.
+ *
+ * `project:read`. The answer is two things: the configured `quotas` rows, and `current` — the LIVE
+ * window state per environment NAME (`:859-862`), each entry a list of `{period, used, limit}`.
+ *
+ * The counter behind `used` is a Postgres row, not a process variable, and
+ * `quota_windows_within_limit` makes exceeding it a constraint violation rather than a race that
+ * usually does not happen (`devplatform/src/migrations.ts:29-35`). So this number is the estate's
+ * and not one replica's, and the screen may state it as a fact.
+ */
+export interface QuotaReport {
+  readonly quotas: readonly Quota[]
+  /** Keyed by environment NAME — `live` and `test`. */
+  readonly current: Readonly<Record<string, readonly QuotaWindow[]>>
+}
+
+export function getQuotas(projectId: string, signal?: AbortSignal): Promise<QuotaReport> {
+  return api<QuotaReport>(`/v1/projects/${encodeURIComponent(projectId)}/quotas`, {
+    ...(signal ? { signal } : {}),
+  })
+}
+
+/**
+ * `GET /v1/projects/:id/usage` — `devplatform/src/server.ts:866`.
+ *
+ * `project:read`. `limit` defaults to 200 and is clamped to 1000 (`:869`), and the window defaults
+ * to the last seven days inside the query (`devplatform/src/quotas.ts:363`) — this route takes no
+ * `since` parameter, so a screen cannot ask for more history than that. Said out loud, because an
+ * empty list here means "nothing in seven days", not "no usage ever".
+ */
+export function listUsage(
+  projectId: string,
+  opts: { limit?: number; signal?: AbortSignal } = {},
+): Promise<{ usage: readonly UsageRollup[] }> {
+  return api<{ usage: readonly UsageRollup[] }>(
+    `/v1/projects/${encodeURIComponent(projectId)}/usage`,
+    {
+      ...(opts.limit ? { query: { limit: opts.limit } } : {}),
+      ...(opts.signal ? { signal: opts.signal } : {}),
+    },
+  )
+}
+
+/* ══════════════════════════════ webhooks ══════════════════════════════ */
+
+/**
+ * `POST /v1/projects/:id/webhook-endpoints` — `devplatform/src/server.ts:876`.
+ *
+ * `project:write`. **Wrapped, so an `Idempotency-Key` is required.** Returns `secret` — shown once,
+ * `null` on a replay (`:904`).
+ *
+ * The service refuses more than this app could usefully validate, and each refusal is worth
+ * surfacing verbatim rather than pre-empting with a guess:
+ *
+ *   * **https only, and no loopback or link-local** (`devplatform/src/webhooks.ts:106-136`). A
+ *     subscriber URL is a destination this service dials from inside the application network, so
+ *     an unchecked one is a server-side request forgery primitive — a customer registering
+ *     `https://169.254.169.254/…` would have the instance metadata endpoint fetched for them.
+ *   * **At least one topic, and no wildcard topic** (`devplatform/src/webhooks.ts:157-165`): "an
+ *     endpoint that receives everything by default is an endpoint nobody meant to subscribe".
+ *   * **One endpoint per `(environment, url)`** (`devplatform/src/webhooks.ts:172-180`).
+ */
+export interface CreateEndpointInput {
+  readonly environment: KeyEnvironment
+  readonly url: string
+  readonly topics: readonly string[]
+  readonly description?: string
+}
+
+export interface CreatedEndpoint {
+  readonly endpoint: WebhookEndpoint
+  /** Shown once. Null on a replay. */
+  readonly secret: string | null
+  readonly replayed: boolean
+}
+
+export function createEndpoint(
+  projectId: string,
+  input: CreateEndpointInput,
+  key: string,
+): Promise<CreatedEndpoint> {
+  return api<CreatedEndpoint>(`/v1/projects/${encodeURIComponent(projectId)}/webhook-endpoints`, {
+    method: 'POST',
+    body: input,
+    headers: idempotently(key),
+  })
+}
+
+/** `GET /v1/projects/:id/webhook-endpoints` — `devplatform/src/server.ts:907`. `project:read`. */
+export function listEndpoints(
+  projectId: string,
+  signal?: AbortSignal,
+): Promise<{ endpoints: readonly WebhookEndpoint[] }> {
+  return api<{ endpoints: readonly WebhookEndpoint[] }>(
+    `/v1/projects/${encodeURIComponent(projectId)}/webhook-endpoints`,
+    { ...(signal ? { signal } : {}) },
+  )
+}
+
+/**
+ * `POST /v1/webhook-endpoints/:id/rotate-secret` — `devplatform/src/server.ts:916`.
+ *
+ * `project:write`, resolved from the ENDPOINT's own project row (`:920`). **Wrapped**, and the
+ * reason is stated at `:912-914`: a retry without it "mints a second secret and retires the one the
+ * customer has just been shown but has not yet deployed".
+ *
+ * The answer carries `overlapMinutes` — how long the OLD secret keeps verifying
+ * (`devplatform/src/env.ts:163-164`, default 1440). This app prints that number, because a rotation
+ * screen that does not say when the old secret dies is a rotation screen that causes an outage.
+ */
+export interface RotatedSecret {
+  readonly endpointId: string
+  readonly overlapMinutes: number
+  /** Shown once. Null on a replay. */
+  readonly secret: string | null
+  readonly replayed: boolean
+}
+
+export function rotateEndpointSecret(id: string, key: string): Promise<RotatedSecret> {
+  return api<RotatedSecret>(`/v1/webhook-endpoints/${encodeURIComponent(id)}/rotate-secret`, {
+    method: 'POST',
+    headers: idempotently(key),
+  })
+}
+
+/**
+ * `POST /v1/webhook-endpoints/:id/disable` — `devplatform/src/server.ts:937`.
+ *
+ * `project:write`. Not wrapped, and it does not need to be: it is a state transition writing a
+ * fixed value, so the second attempt writes the same value (`:942-943`). **It only ever disables**
+ * — the handler passes `true` (`:944`) — so this app must not draw it as a toggle that can also
+ * re-enable. There is no route that re-enables an endpoint; deleting and recreating is the path,
+ * and that mints a new secret. Reported.
+ */
+export function disableEndpoint(id: string): Promise<{ endpoint: WebhookEndpoint }> {
+  return api<{ endpoint: WebhookEndpoint }>(
+    `/v1/webhook-endpoints/${encodeURIComponent(id)}/disable`,
+    { method: 'POST' },
+  )
+}
+
+/** `DELETE /v1/webhook-endpoints/:id` — `devplatform/src/server.ts:947`. `project:write`. */
+export function deleteEndpoint(id: string): Promise<{ deleted: boolean }> {
+  return api<{ deleted: boolean }>(`/v1/webhook-endpoints/${encodeURIComponent(id)}`, {
+    method: 'DELETE',
+  })
+}
+
+/**
+ * `GET /v1/webhook-endpoints/:id/deliveries` — `devplatform/src/server.ts:956`.
+ *
+ * `project:read`. The newest 50 (`devplatform/src/webhooks.ts:536-539`). A row with
+ * `deliveredAt: null` and a climbing `attempts` is a delivery still being retried; one past the
+ * attempt ceiling is ABANDONED and is retained rather than deleted, "because the row is the only
+ * record that a customer was sent an event and never took it"
+ * (`devplatform/src/server.ts:248-253`). This screen must therefore never present an old
+ * undelivered row as merely pending.
+ */
+export function listDeliveries(
+  endpointId: string,
+  signal?: AbortSignal,
+): Promise<{ deliveries: readonly Delivery[] }> {
+  return api<{ deliveries: readonly Delivery[] }>(
+    `/v1/webhook-endpoints/${encodeURIComponent(endpointId)}/deliveries`,
+    { ...(signal ? { signal } : {}) },
+  )
+}
+
+/* ══════════════════════════════ oauth clients ══════════════════════════════ */
+
+/**
+ * `POST /v1/projects/:id/oauth-clients` — `devplatform/src/server.ts:966`.
+ *
+ * `project:write`. **Wrapped, so an `Idempotency-Key` is required.** Returns `clientSecret` — shown
+ * once, `null` on a replay (`:1000`). There is no column it could be read back from: the secret is
+ * hashed exactly as an API key's is, under the same `oauth_clients_slow_kdf_only` constraint
+ * (`devplatform/src/migrations.ts:229`).
+ *
+ * **Every redirect URI must be absolute https, or http on loopback for development, with no
+ * fragment and no wildcard** (`devplatform/src/oauth.ts:102-116`), and the schema says the same
+ * thing in a CHECK (`devplatform/src/migrations.ts:236-240`). The comment there names the stake:
+ * a wildcard or relative redirect "is an open redirect that hands an authorisation code to whoever
+ * asked for it, and it is the single most exploited misconfiguration in OAuth deployments".
+ */
+export interface RegisterClientInput {
+  readonly name: string
+  readonly redirectUris: readonly string[]
+  readonly scopes: readonly string[]
+}
+
+export interface RegisteredClient {
+  readonly client: OAuthClient
+  /** Shown once. Null on a replay. */
+  readonly clientSecret: string | null
+  readonly replayed: boolean
+}
+
+export function registerClient(
+  projectId: string,
+  input: RegisterClientInput,
+  key: string,
+): Promise<RegisteredClient> {
+  return api<RegisteredClient>(`/v1/projects/${encodeURIComponent(projectId)}/oauth-clients`, {
+    method: 'POST',
+    body: input,
+    headers: idempotently(key),
+  })
+}
+
+/** `GET /v1/projects/:id/oauth-clients` — `devplatform/src/server.ts:1003`. `project:read`. */
+export function listClients(
+  projectId: string,
+  signal?: AbortSignal,
+): Promise<{ clients: readonly OAuthClient[] }> {
+  return api<{ clients: readonly OAuthClient[] }>(
+    `/v1/projects/${encodeURIComponent(projectId)}/oauth-clients`,
+    { ...(signal ? { signal } : {}) },
+  )
+}
+
+/**
+ * `DELETE /v1/oauth-clients/:id` — `devplatform/src/server.ts:1008`.
+ *
+ * `project:write`, resolved from the client's own `project_id` (`:1010-1015`). `revokeClient` uses
+ * `coalesce(revoked_at, now())` (`devplatform/src/routeidempotency.test.ts:57-58`), so a second
+ * call preserves the first revocation's time. The row survives revocation, which is why the list
+ * above returns `revokedAt` rather than dropping it.
+ */
+export function revokeClient(id: string): Promise<{ client: OAuthClient }> {
+  return api<{ client: OAuthClient }>(`/v1/oauth-clients/${encodeURIComponent(id)}`, {
+    method: 'DELETE',
+  })
+}
+
+/* ══════════════════════════════ the directory listing ══════════════════════════════ */
+
+/**
+ * `PUT /v1/projects/:id/application` — `devplatform/src/server.ts:1034`.
+ *
+ * `project:write`. An upsert on `project_id` — one listing per project — so a retry updates rather
+ * than conflicts, which is why it is exempt from the wrapper (`:1033`).
+ *
+ * **Editing a LISTED application does not un-list it and does not send it back for review**, and
+ * `devplatform/src/applications.ts:96-101` states that as a deliberate, arguable choice: "re-review
+ * on every copy change would mean a typo fix takes a human, and the practical consequence of that
+ * is developers who never fix typos." This screen says so, because a developer who believes an
+ * edit will re-trigger review will not make one.
+ */
+export interface UpsertApplicationInput {
+  readonly slug: string
+  readonly name: string
+  readonly tagline?: string
+  readonly description?: string
+  readonly homepageUrl?: string | null
+}
+
+export function upsertApplication(
+  projectId: string,
+  input: UpsertApplicationInput,
+): Promise<{ application: Application }> {
+  return api<{ application: Application }>(
+    `/v1/projects/${encodeURIComponent(projectId)}/application`,
+    { method: 'PUT', body: input },
+  )
+}
+
+/**
+ * `GET /v1/projects/:id/application` — `devplatform/src/server.ts:1048`.
+ *
+ * `project:read`. **404 is the normal answer for a project that has never written one** (`:1051`),
+ * so this app renders that 404 as an invitation rather than as a failure. It is the one place in
+ * this client where a 404 is an expected outcome of a correct request.
+ */
+export function getApplication(
+  projectId: string,
+  signal?: AbortSignal,
+): Promise<{ application: Application }> {
+  return api<{ application: Application }>(
+    `/v1/projects/${encodeURIComponent(projectId)}/application`,
+    { ...(signal ? { signal } : {}) },
+  )
+}
+
+/**
+ * `POST /v1/projects/:id/application/submit` — `devplatform/src/server.ts:1056`.
+ *
+ * `project:write`. A state transition claimed with `where status in (…)`, so the second attempt
+ * matches no row (`:1055`) — which is why it needs no wrapper and why a double click cannot
+ * produce two reviews. Nothing in this estate serves the reviewer's side: `setApplicationStatus`
+ * (`devplatform/src/applications.ts:152`) is imported by the server (`devplatform/src/server.ts:149`)
+ * and called by no route. A submitted application therefore sits in `in_review` until somebody
+ * writes the operator's screen. Held as data in `KNOWN_GAPS` below and rendered on the screen.
+ */
+export function submitApplication(projectId: string): Promise<{ application: Application }> {
+  return api<{ application: Application }>(
+    `/v1/projects/${encodeURIComponent(projectId)}/application/submit`,
+    { method: 'POST' },
+  )
+}
+
+/* ══════════════════════════════ the gaps, as data ══════════════════════════════ */
+
+export interface KnownGap {
+  /** A stable id, used as the test's handle on this entry. */
+  readonly id: string
+  readonly title: string
+  /** What is true today. Written as a finding, never as "coming soon". */
+  readonly finding: string
+  /** The lines somebody can check it against. */
+  readonly citations: readonly string[]
+  /** What would close it. Concrete enough to act on. */
+  readonly closes: string
+}
+
+export const GATEWAY_GAP: KnownGap = {
+  id: 'gateway-routes-nothing',
+  title: 'The public API gateway routes none of this service',
+  finding:
+    'deploy/gateway/dynamic/public-api.yml registers routers for pricing, activity, foresight, ' +
+    'identity, wallet, market, mint and worlds, and for nothing else. None of organisations, ' +
+    'projects, keys, webhook-endpoints, oauth-clients, quotas, usage, apps or scopes appears in ' +
+    'any rule, so every devplatform path on api.<apex> falls to the catch-all and is blackholed ' +
+    'to an unreachable upstream. A key issued here works against no public host today.',
+  citations: [
+    'deploy/gateway/dynamic/public-api.yml:79',
+    'deploy/gateway/dynamic/public-api.yml:164',
+    'deploy/gateway/dynamic/public-api.yml:206',
+    'devplatform/src/server.ts:8',
+  ],
+  closes:
+    'A cf-api-devplatform router matching the eight resources devplatform serves, forwarded ' +
+    'unchanged — it serves /v1 natively, so it takes no strip-prefix middleware — and a compose ' +
+    'block for the service, which deploy/compose/docker-compose.slice.yml also does not have.',
+}
+
+export const SDK_GAP: KnownGap = {
+  id: 'sdk-has-no-devplatform',
+  title: 'The public SDK and CLI cannot manage a key',
+  finding:
+    'sdk/openapi.json carries 52 paths and not one belongs to devplatform, so @cloudsforge/sdk ' +
+    'and the cloudsforge CLI can present a key as a bearer token and can do nothing else with ' +
+    'one — no issue, no list, no revoke, no introspection. Both still say in their own source ' +
+    'that devplatform does not exist. It does.',
+  citations: [
+    'sdk/packages/sdk/src/credentials.ts:7',
+    'sdk/packages/cli/src/run.ts:518',
+    'devplatform/src/server.ts:604',
+  ],
+  closes:
+    'devplatform’s /v1 routes are added to the SDK’s verified route table and to openapi.json, ' +
+    'after the gateway routes them — an SDK entry for a path the gateway blackholes would be a ' +
+    'second imagined surface.',
+}
+
+export const REVIEW_GAP: KnownGap = {
+  id: 'application-review-unimplemented',
+  title: 'Nothing can approve a submitted application',
+  finding:
+    'POST /v1/projects/:id/application/submit moves a listing to in_review, and no route in the ' +
+    'estate moves it any further. setApplicationStatus is the only function that writes listed ' +
+    'or delisted; devplatform/src/server.ts imports it and no handler calls it. A submitted ' +
+    'application waits indefinitely, and the public directory stays empty however many are sent.',
+  citations: [
+    'devplatform/src/server.ts:1056',
+    'devplatform/src/server.ts:149',
+    'devplatform/src/applications.ts:152',
+  ],
+  closes:
+    'The operator console grows the reviewer’s screen and devplatform grows the route behind it. ' +
+    'It belongs there rather than here: a directory a developer could list themselves into is not ' +
+    'a reviewed directory.',
+}
+
+export const KNOWN_GAPS: readonly KnownGap[] = [GATEWAY_GAP, SDK_GAP, REVIEW_GAP]

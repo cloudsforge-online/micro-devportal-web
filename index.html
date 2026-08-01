@@ -1,0 +1,81 @@
+<!doctype html>
+<!--
+  data-cf-product picks the accent ramp and data-cf-substrate the ash ramp, both from
+  @cloudsforge/ui/tokens.css. They are on <html> and set STATICALLY here rather than by React,
+  because a page that paints before the attributes land flashes the default ember and then changes
+  colour.
+
+  'developers' is azure, #4a86e0 — its own block in tokens.css
+  (`ui/packages/ui/src/tokens.css:428`), and the accent the registry gives this surface
+  (`ui/packages/ui/src/surfaces.ts:390`). Checked rather than assumed: `admin` was set against a
+  selector that did not exist, and the console wore the company's colour by accident for as long as
+  that was true. `test/brand-chrome.test.ts` reads tokens.css and asserts the block is there.
+
+  'warm' is the ash ramp the brand marks in brand/assets/developers/ are drawn on, and the one
+  every other frontend in the estate uses.
+-->
+<html lang="en-GB" data-cf-product="developers" data-cf-substrate="warm">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="colour-scheme" content="dark" />
+    <!--
+      The build that produced this bundle. Stamped by the Dockerfile, read by src/lib/obs.ts, and
+      the reason an error report can be pinned to the deploy that introduced it. It is an identity
+      rather than a configuration: it names the artefact, it does not tell it where it is running.
+    -->
+    <meta name="cf-release" content="dev" />
+
+    <!--
+      The description says what the product is AND the one property a developer most needs to know
+      before they use it, in the same sentence, because this string is the one that ends up in a
+      search result.
+    -->
+    <meta
+      name="description"
+      content="Enrol an organisation, create a project, and issue an API key with the exact scopes it needs. A key's secret is shown once, at the moment it is created, and cannot be recovered afterwards."
+    />
+
+    <!--
+      Brand chrome for the `developers` surface, from micro-brand's assets/developers/ set, copied
+      byte-identical — test/brand-chrome.test.ts compares the bytes in both directions.
+
+      This surface's entitled set is "mark, favicon, wordmark, og" — seven files, and deliberately
+      NO social banner (`brand/plan.ts:234-243`, `brand/README.md:41`, `brand/README.md:64-65`). The
+      og card IS shipped: brand/README.md:64 records that it "gained an `og` because devportal-web
+      is public and its links get shared". The mark and wordmark are not referenced from this page,
+      which needs a tab icon and a share card and nothing else; the registry also carries
+      `markId: null` for this surface (`ui/packages/ui/src/surfaces.ts:392`), so the design system
+      draws no inline mark for it either.
+    -->
+    <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png" />
+    <link rel="icon" type="image/png" sizes="192x192" href="/favicon-192x192.png" />
+    <link rel="icon" type="image/png" sizes="512x512" href="/favicon-512x512.png" />
+    <link rel="apple-touch-icon" sizes="192x192" href="/favicon-192x192.png" />
+
+    <!--
+      ONE og block, not two. foresight-web/index.html declares og:type, og:title and og:description
+      twice — the second set silently wins in every crawler and the first is dead text nobody edits.
+      Reported there; not repeated here, and test/brand-chrome.test.ts counts each property.
+
+      The image is a RELATIVE path so the card resolves against whichever origin served the page,
+      which is the same rule the rest of this bundle follows for hosts.
+
+      The card carries the same refusal the product does. A social card is read WITHOUT the
+      surrounding page, so it is the easiest place to imply that a key could be recovered.
+    -->
+    <meta property="og:type" content="website" />
+    <meta property="og:title" content="CloudsForge Developer Platform" />
+    <meta
+      property="og:description"
+      content="Projects, API keys, OAuth clients, webhooks and quotas. A key's secret is shown once and stored under scrypt; it cannot be recovered by anyone, including us."
+    />
+    <meta property="og:image" content="/og-1200x630.png" />
+
+    <title>CloudsForge Developer Platform</title>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>
