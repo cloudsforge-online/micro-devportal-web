@@ -157,7 +157,7 @@ function NewProject({ orgId, onCreated }: { orgId: string; onCreated: () => void
         <label className="dp-field">
           <span className="dp-field__label">Name</span>
           <input
-            className="dp-input"
+            className="cf-input"
             value={name}
             onChange={(event) => setName(event.currentTarget.value)}
             maxLength={200}
@@ -167,7 +167,7 @@ function NewProject({ orgId, onCreated }: { orgId: string; onCreated: () => void
         <label className="dp-field">
           <span className="dp-field__label">Slug</span>
           <input
-            className="dp-input cf-num"
+            className="cf-input cf-num"
             value={slug}
             onChange={(event) => setSlug(event.currentTarget.value)}
             required

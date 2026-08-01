@@ -316,7 +316,7 @@ function LowerLimit({
           New {quota.period} limit for {environment}, lower than {count(quota.maxUnits)}
         </span>
         <input
-          className="dp-input cf-num"
+          className="cf-input cf-num"
           type="number"
           min={1}
           max={quota.maxUnits - 1}

@@ -173,7 +173,7 @@ function NewEndpoint({ projectId, onCreated }: { projectId: string; onCreated: (
         <label className="dp-field">
           <span className="dp-field__label">URL</span>
           <input
-            className="dp-input cf-num"
+            className="cf-input cf-num"
             value={url}
             onChange={(event) => setUrl(event.currentTarget.value)}
             required
@@ -187,7 +187,7 @@ function NewEndpoint({ projectId, onCreated }: { projectId: string; onCreated: (
         <label className="dp-field">
           <span className="dp-field__label">Topics</span>
           <input
-            className="dp-input cf-num"
+            className="cf-input cf-num"
             value={topics}
             onChange={(event) => setTopics(event.currentTarget.value)}
             required
@@ -215,7 +215,7 @@ function NewEndpoint({ projectId, onCreated }: { projectId: string; onCreated: (
         <label className="dp-field">
           <span className="dp-field__label">Description</span>
           <input
-            className="dp-input"
+            className="cf-input"
             value={description}
             onChange={(event) => setDescription(event.currentTarget.value)}
           />

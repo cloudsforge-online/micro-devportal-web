@@ -209,7 +209,7 @@ function NewServiceAccount({
         <label className="dp-field">
           <span className="dp-field__label">Name</span>
           <input
-            className="dp-input"
+            className="cf-input"
             value={name}
             onChange={(event) => setName(event.currentTarget.value)}
             required
@@ -219,7 +219,7 @@ function NewServiceAccount({
         <label className="dp-field">
           <span className="dp-field__label">Description</span>
           <input
-            className="dp-input"
+            className="cf-input"
             value={description}
             onChange={(event) => setDescription(event.currentTarget.value)}
           />
@@ -360,7 +360,7 @@ function ApplicationSection({ projectId }: { projectId: string }) {
         <label className="dp-field">
           <span className="dp-field__label">Slug</span>
           <input
-            className="dp-input cf-num"
+            className="cf-input cf-num"
             value={draft.slug}
             onChange={(event) => setDraft({ ...draft, slug: event.currentTarget.value })}
             required
@@ -369,7 +369,7 @@ function ApplicationSection({ projectId }: { projectId: string }) {
         <label className="dp-field">
           <span className="dp-field__label">Name</span>
           <input
-            className="dp-input"
+            className="cf-input"
             value={draft.name}
             onChange={(event) => setDraft({ ...draft, name: event.currentTarget.value })}
             required
@@ -378,7 +378,7 @@ function ApplicationSection({ projectId }: { projectId: string }) {
         <label className="dp-field">
           <span className="dp-field__label">Tagline</span>
           <input
-            className="dp-input"
+            className="cf-input"
             value={draft.tagline}
             maxLength={300}
             onChange={(event) => setDraft({ ...draft, tagline: event.currentTarget.value })}
@@ -387,7 +387,7 @@ function ApplicationSection({ projectId }: { projectId: string }) {
         <label className="dp-field">
           <span className="dp-field__label">Description</span>
           <textarea
-            className="dp-input dp-input--area"
+            className="cf-input dp-area"
             value={draft.description}
             maxLength={10_000}
             onChange={(event) => setDraft({ ...draft, description: event.currentTarget.value })}
@@ -396,7 +396,7 @@ function ApplicationSection({ projectId }: { projectId: string }) {
         <label className="dp-field">
           <span className="dp-field__label">Homepage</span>
           <input
-            className="dp-input"
+            className="cf-input"
             value={draft.homepageUrl}
             onChange={(event) => setDraft({ ...draft, homepageUrl: event.currentTarget.value })}
           />

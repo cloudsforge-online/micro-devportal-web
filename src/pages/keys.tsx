@@ -207,7 +207,7 @@ function IssueKey({ projectId, onIssued }: { projectId: string; onIssued: () => 
         <label className="dp-field">
           <span className="dp-field__label">Name</span>
           <input
-            className="dp-input"
+            className="cf-input"
             value={name}
             onChange={(event) => setName(event.currentTarget.value)}
             maxLength={200}
@@ -258,7 +258,7 @@ function IssueKey({ projectId, onIssued }: { projectId: string; onIssued: () => 
         <label className="dp-field">
           <span className="dp-field__label">Expires</span>
           <input
-            className="dp-input"
+            className="cf-input"
             type="date"
             value={expiresAt}
             onChange={(event) => setExpiresAt(event.currentTarget.value)}
@@ -346,7 +346,7 @@ function RevokeKey({
         cannot be undone — a replacement is a different credential that you will have to deploy.
       </p>
       <input
-        className="dp-input"
+        className="cf-input"
         value={reason}
         placeholder="Why (optional, recorded on the row)"
         onChange={(event) => setReason(event.currentTarget.value)}

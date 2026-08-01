@@ -170,7 +170,7 @@ function NewClient({ projectId, onRegistered }: { projectId: string; onRegistere
         <label className="dp-field">
           <span className="dp-field__label">Name</span>
           <input
-            className="dp-input"
+            className="cf-input"
             value={name}
             onChange={(event) => setName(event.currentTarget.value)}
             required
@@ -179,7 +179,7 @@ function NewClient({ projectId, onRegistered }: { projectId: string; onRegistere
         <label className="dp-field">
           <span className="dp-field__label">Redirect URIs</span>
           <textarea
-            className="dp-input dp-input--area cf-num"
+            className="cf-input dp-area cf-num"
             value={redirects}
             onChange={(event) => setRedirects(event.currentTarget.value)}
             required

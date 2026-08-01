@@ -180,7 +180,7 @@ function EnrolForm({ org }: { org: IdentityOrg }) {
         <label className="dp-field">
           <span className="dp-field__label">Name</span>
           <input
-            className="dp-input"
+            className="cf-input"
             value={name}
             onChange={(event) => setName(event.currentTarget.value)}
             maxLength={200}
@@ -190,7 +190,7 @@ function EnrolForm({ org }: { org: IdentityOrg }) {
         <label className="dp-field">
           <span className="dp-field__label">Slug</span>
           <input
-            className="dp-input cf-num"
+            className="cf-input cf-num"
             value={slug}
             onChange={(event) => setSlug(event.currentTarget.value)}
             aria-describedby={`slug-help-${org.id}`}

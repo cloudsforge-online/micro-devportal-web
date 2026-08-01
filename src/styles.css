@@ -472,24 +472,9 @@
   max-width: 66ch;
 }
 
-.dp-input {
-  inline-size: 100%;
-  max-inline-size: 100%;
-  padding: var(--cf-space-sm);
-  border: 1px solid var(--cf-line-strong);
-  border-radius: var(--cf-radius-sm);
-  background: var(--cf-bg-sunken);
-  color: var(--cf-fg);
-  font-family: var(--cf-font-sans);
-  font-size: var(--cf-text-sm);
-}
 
-.dp-input:focus-visible {
-  outline: 2px solid var(--cf-accent);
-  outline-offset: 1px;
-}
 
-.dp-input--area {
+.dp-area {
   min-block-size: 6rem;
   font-family: var(--cf-font-mono);
 }
@@ -529,7 +514,7 @@
   inline-size: auto;
 }
 
-.dp-field--inline .dp-input {
+.dp-field--inline .cf-input {
   inline-size: 9rem;
 }
 
