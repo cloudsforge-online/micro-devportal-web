@@ -149,6 +149,40 @@ jobs:
             src
             Dockerfile
 
+      # The last four repositories this bundle cites into. They are here for one reason: the first
+      # green run printed "UNCHECKED: citations into market, org, hub-api, service-template", which
+      # is the citation sweep being honest about what it did NOT measure — and an unmeasured
+      # citation left unmeasured on purpose is the shape of claim this repository exists to refuse.
+      # Each is a single file's worth of sparse checkout.
+      - uses: actions/checkout@v4
+        with:
+          repository: cloudsforge-online/micro-market
+          path: market
+          token: ${{ secrets.ESTATE_READ_TOKEN }}
+          sparse-checkout: |
+            src
+      - uses: actions/checkout@v4
+        with:
+          repository: cloudsforge-online/micro-org
+          path: org
+          token: ${{ secrets.ESTATE_READ_TOKEN }}
+          sparse-checkout: |
+            tools
+      - uses: actions/checkout@v4
+        with:
+          repository: cloudsforge-online/micro-hub-api
+          path: hub-api
+          token: ${{ secrets.ESTATE_READ_TOKEN }}
+          sparse-checkout: |
+            src
+      - uses: actions/checkout@v4
+        with:
+          repository: cloudsforge-online/micro-service-template
+          path: service-template
+          token: ${{ secrets.ESTATE_READ_TOKEN }}
+          sparse-checkout: |
+            src
+
       # Pinned, because the checkout lives at devportal-web/ and the action looks for the
       # packageManager field in the workspace root, where there is no package.json.
       - uses: pnpm/action-setup@v4
@@ -356,10 +390,14 @@ jobs:
             echo "::error::the citation sweep did not run"
             exit 1
           }
+          # Every repository this bundle cites into IS checked out above, so an UNCHECKED line here
+          # means a citation reaches somewhere nobody has arranged to verify — a green run implying
+          # more than it measured. It is fatal rather than a notice for that reason.
           if printf '%s\n' "$out" | grep 'UNCHECKED:'; then
-            echo "::notice::the citations into those repositories were not verified on this run"
+            echo "::error::a citation reaches a repository this workflow does not check out"
+            exit 1
           fi
-          echo "ok: every citation into a checked-out repository resolves"
+          echo "ok: every citation was verified against the repository it names"
 
       - name: Build
         working-directory: devportal-web
