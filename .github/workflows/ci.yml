@@ -508,10 +508,23 @@ jobs:
       - name: A secret is never persisted
         # It lives in one component's props and in the caller's state, and is cleared on
         # acknowledgement. src/lib/api.ts holds the SESSION tokens and is the one exemption.
+        #
+        # COMMENTS STRIPPED FIRST — and this step is why the rule is worth restating rather than
+        # assuming. Its first version did not strip them, and it failed the build on
+        # src/components/once.tsx, whose own comment says "Nothing here touches `localStorage`".
+        # That is the sixth time in this estate a guard has gone red against the sentence
+        # explaining it. The fix is to strip the prose, never to delete the explanation.
         run: |
           set -uo pipefail
-          if grep -rn --include='*.ts' --include='*.tsx' -E 'localStorage|sessionStorage|document\.cookie' src \
-               | grep -v '^src/lib/api.ts:'; then
+          strip() { perl -0pe 's{/\*.*?\*/}{}gs; s{^\s*//.*$}{}gm' "$1"; }
+          fail=0
+          for f in $(find src -name '*.ts' -o -name '*.tsx'); do
+            [ "$f" = "src/lib/api.ts" ] && continue
+            if strip "$f" | grep -nE 'localStorage|sessionStorage|document\.cookie' | sed "s|^|$f:|" | grep .; then
+              fail=1
+            fi
+          done
+          if [ "$fail" -ne 0 ]; then
             echo "::error::a secret must not reach browser storage"
             exit 1
           fi
