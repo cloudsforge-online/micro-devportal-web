@@ -237,11 +237,11 @@ jobs:
             exit 1
           }
           out=$(node --import tsx --test test/devplatform.test.ts 2>&1 || true)
-          if printf '%s\n' "$out" | grep -q 'SKIPPED: no micro-devplatform checkout'; then
+          if grep -q 'SKIPPED: no micro-devplatform checkout' <<<"$out"; then
             echo "::error::the route cross-check skipped itself while micro-devplatform was present"
             exit 1
           fi
-          printf '%s\n' "$out" | grep -q "is registered at devplatform/src/server.ts:${cited}" || {
+          grep -q "is registered at devplatform/src/server.ts:${cited}" <<<"$out" || {
             echo "::error::the route cross-check did not run against devplatform/src/server.ts"
             exit 1
           }
@@ -348,11 +348,11 @@ jobs:
             exit 1
           }
           out=$(node --import tsx --test test/tokens.test.ts 2>&1 || true)
-          if printf '%s\n' "$out" | grep -q 'SKIPPED: no micro-ui checkout'; then
+          if grep -q 'SKIPPED: no micro-ui checkout' <<<"$out"; then
             echo "::error::the token cross-check skipped itself while micro-ui was present"
             exit 1
           fi
-          printf '%s\n' "$out" | grep -q 'every property this stylesheet reads is declared' || {
+          grep -q 'every property this stylesheet reads is declared' <<<"$out" || {
             echo "::error::the token cross-check did not run against tokens.css"
             exit 1
           }
@@ -392,7 +392,7 @@ jobs:
             echo "::error::a citation in this repository names a line that does not exist"
             exit 1
           }
-          printf '%s\n' "$out" | grep -q 'names a line INSIDE that file' || {
+          grep -q 'names a line INSIDE that file' <<<"$out" || {
             echo "::error::the citation sweep did not run"
             exit 1
           }
@@ -479,7 +479,7 @@ jobs:
             echo "::error::unknown paths must 404; serve the shell through error_page 404 /index.html"
             exit 1
           fi
-          printf '%s\n' "$directives" | grep -q 'error_page 404 /index.html'
+          grep -q 'error_page 404 /index.html' <<<"$directives"
           echo "ok: unknown paths answer 404"
 
       - name: The auth callback is redeemed before the app renders
@@ -618,11 +618,17 @@ jobs:
           # The direction check is in the client, before the request is built. Without it the page
           # would post a raise and read a 403, which teaches a developer the control is broken
           # rather than that the rule exists.
-          strip src/lib/devplatform.ts | grep -q 'quota_raise_refused' || {
+          # `grep -q … < <(strip …)` rather than `strip … | grep -q …`: grep -q exits on its first
+          # match by design, and under `pipefail` the producer's EPIPE (141) became the pipeline's
+          # status. That failed in the DANGEROUS direction — the `||` below fired and declared the
+          # refusal missing while it was present at src/lib/devplatform.ts:865. Measured here: the
+          # piped form said MISSING on 10 of 20 runs; this form is correct on 20 of 20. Process
+          # substitution keeps grep's own exit status, so the rule still means exactly what it did.
+          grep -q 'quota_raise_refused' < <(strip src/lib/devplatform.ts) || {
             echo "::error::src/lib/devplatform.ts no longer refuses a quota raise before the wire"
             exit 1
           }
-          strip src/pages/usage.tsx | grep -q 'lowerQuota(' || {
+          grep -q 'lowerQuota(' < <(strip src/pages/usage.tsx) || {
             echo "::error::the usage screen no longer offers the lowering control"
             exit 1
           }
@@ -630,10 +636,16 @@ jobs:
 
       - name: A path id is never sent malformed
         # A malformed :id reaches a uuid column on every route that predates requireUuid and comes
-        # back as 500 internal rather than 400 — devplatform/src/server.ts:1632-1636 says so and
-        # declines to change eleven shipped status codes in one commit. This console's addresses
-        # ARE those ids, so a typo must not read as an outage. Asserted here as well as in the
-        # suite, because deleting the test would otherwise delete the rule.
+        # back as 500 internal rather than 400 — devplatform/src/server.ts:1673-1692 says so, and
+        # declines to change the shipped status codes in one commit. It deliberately writes down NO
+        # count: this comment used to say "eleven", micro-devplatform@aadf5a6 deleted that number
+        # because three readers had counted eleven, nineteen and twenty-five, and the source and
+        # README were corrected while this copy was not. The command is the honest form of it:
+        #
+        #     grep -oE "'/v1/[^']*:id[^']*'" src/server.ts | sort -u | wc -l   # 19 at aadf5a6
+        #
+        # This console's addresses ARE those ids, so a typo must not read as an outage. Asserted
+        # here as well as in the suite, because deleting the test would otherwise delete the rule.
         run: |
           set -uo pipefail
           strip() { perl -0pe 's{/\*.*?\*/}{}gs; s{^\s*//.*$}{}gm' "$1"; }
