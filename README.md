@@ -3,7 +3,7 @@
 The **Developer Platform console** — the surface a third party uses to integrate with CloudsForge.
 It enrols a developer organisation, creates projects, issues and revokes API keys, registers OAuth
 clients and webhook endpoints, and shows usage against quotas. It is the browser client for
-[`micro-devplatform`](../devplatform), and it holds nothing of its own.
+[`micro-devplatform`](https://github.com/cloudsforge-online/micro-devplatform), and it holds nothing of its own.
 
 > **This console cannot show you a key twice, and neither can anybody else.**
 > `api_keys` has no column a secret could be read back from: `secret_algo`, `secret_salt` and
@@ -14,7 +14,7 @@ clients and webhook endpoints, and shows usage against quotas. It is the browser
 > never draws a "show key" control, never offers to email one, and never says "contact support" —
 > and `test/render.test.ts` fails the build on nine phrasings that would imply otherwise.
 
-Specification: `docs/ecosystem/03-repository-responsibilities.md` §1.2 (`devportal-web`, phase P11).
+Design authority: [`ecosystem/03-repository-responsibilities.md`](https://github.com/cloudsforge-online/micro-docs/blob/main/ecosystem/03-repository-responsibilities.md) §1.2 (`devportal-web`, phase P11).
 
 ---
 
@@ -415,3 +415,10 @@ build context in the Dockerfile, and the `micro-ui` checkout in `ci.yml`. At tha
 200 for any deep link, and this app's nginx answers 404 for an address it does not own on purpose.
 The measured target in `docs/ecosystem/03-repository-responsibilities.md` §5 is zero repositories
 with a bespoke CI file, so treat every local job as a liability with a deletion date.
+
+---
+
+## Provenance
+
+The code in this repository was written by **Claude Opus 5** and **Claude Fable 5**, under
+human direction and review.
