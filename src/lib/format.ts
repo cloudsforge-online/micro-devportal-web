@@ -10,7 +10,7 @@
 /**
  * THE SENTENCE. It is the service's own, verbatim.
  *
- * `devplatform/src/server.ts:927` attaches exactly this string as `note` on the response that mints
+ * `devplatform/src/server.ts:961` attaches exactly this string as `note` on the response that mints
  * a key. It is duplicated here so a screen can say it BEFORE the request is sent — a warning that
  * only appears after the secret does is a warning nobody read in time — and
  * `test/devplatform.test.ts` asserts the two strings are still identical, which is what stops this
@@ -25,7 +25,7 @@ export const SHOWN_ONCE =
  * `webhook_secrets` stores plaintext, and `devplatform/src/migrations.ts:59-66` says why in the
  * schema itself: "HMAC is not a one-way function of an input we do not have: signing a delivery
  * requires the secret itself." It is still shown once — no route returns it afterwards
- * (`devplatform/src/webhooks.ts:147`) — but saying it is hashed would be false, and this product
+ * (`devplatform/src/webhooks.ts:148`) — but saying it is hashed would be false, and this product
  * does not get to be vague about which of its secrets are recoverable.
  */
 export const WEBHOOK_SECRET_NOTE =
@@ -49,7 +49,7 @@ export interface Tone {
  * and telling somebody their key expired when in fact a colleague revoked it sends them to fix the
  * wrong thing.
  *
- * `expiresAt` is nullable and a null means "never" (`devplatform/src/apikeys.ts:150`), not "unknown".
+ * `expiresAt` is nullable and a null means "never" (`devplatform/src/apikeys.ts:151`), not "unknown".
  */
 export function keyState(key: {
   revokedAt: string | null
@@ -88,7 +88,7 @@ export function keyState(key: {
  *
  * `abandoned` is the one worth being loud about. A delivery past its attempt ceiling is retained
  * rather than deleted "because the row is the only record that a customer was sent an event and
- * never took it" (`devplatform/src/server.ts:289-294`), so it will sit in this list for ever
+ * never took it" (`devplatform/src/server.ts:290-295`), so it will sit in this list for ever
  * looking like a pending one unless the screen distinguishes them. The ceiling is configurable
  * (`DEVPLATFORM_WEBHOOK_MAX_ATTEMPTS`, default 8 — `devplatform/src/env.ts:215`) and is NOT on the
  * wire, so this function takes it rather than assuming it.

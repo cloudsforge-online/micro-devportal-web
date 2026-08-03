@@ -7,13 +7,13 @@
  * Until `micro-devplatform@e13c154` the service served no route that resolved an identity
  * organisation to its developer-platform enrolment: `GET /v1/organisations/:id` wants the
  * DEVELOPER id, which a console that has never enrolled has no way to learn, and
- * `findOrgByIdentityId` (`devplatform/src/orgs.ts:162`) was reachable only from the event inbox
- * (`devplatform/src/server.ts:1523`). So this screen drew ONE control meaning both "enrol" and
+ * `findOrgByIdentityId` (`devplatform/src/orgs.ts:163`) was reachable only from the event inbox
+ * (`devplatform/src/server.ts:1557`). So this screen drew ONE control meaning both "enrol" and
  * "open", and answered "which organisation am I in?" by re-POSTing the idempotent enrolment. That
  * was harmless — `on conflict do nothing` really is idempotent — and it was still a write issued
  * to ask a question, which is one keystroke from a write issued by mistake.
  *
- * `GET /v1/organisations?identityOrgId=…` (`devplatform/src/server.ts:784`) is the read, and this
+ * `GET /v1/organisations?identityOrgId=…` (`devplatform/src/server.ts:816`) is the read, and this
  * screen now uses it. Each card asks the question first and then draws ONE of two things:
  *
  *   ENROLLED      a link. No form, because there is nothing to fill in — `name` and `slug` are
@@ -22,14 +22,14 @@
  *   NOT ENROLLED  the form. It is the first enrolment, so the fields are the ones that count.
  *
  * That distinction is only drawable because an empty answer is a `200` with `[]` rather than a 404
- * (`devplatform/src/server.ts:796`): "you are a member of this company and it has no developer
+ * (`devplatform/src/server.ts:828`): "you are a member of this company and it has no developer
  * platform presence yet" is an enrolment button, whereas a 404 would be a dead end.
  * ══════════════════════════════════════════════════════════════════════════════════════════════
  *
  * The list of identity organisations comes from `/auth/me` — `organisations`, with the caller's
  * role in each (`identity/src/organisations.ts:148-159`). The role is used to LABEL only.
  * `devplatform` re-asks identity for it on the request and refuses anything below admin
- * (`devplatform/src/server.ts:752-753`); a browser deciding it would be a browser deciding its own
+ * (`devplatform/src/server.ts:784-785`); a browser deciding it would be a browser deciding its own
  * authority.
  */
 import { useState } from 'react'
@@ -41,7 +41,7 @@ import { useResource } from '../lib/resource.ts'
 import { mayEnrol, useSession, type IdentityOrg } from '../lib/auth.tsx'
 import { enrolOrganisation, resolveOrganisation } from '../lib/devplatform.ts'
 
-/** Slug rules, copied from `devplatform/src/orgs.ts:53` so the field can refuse before the wire. */
+/** Slug rules, copied from `devplatform/src/orgs.ts:54` so the field can refuse before the wire. */
 const SLUG = /^[a-z0-9][a-z0-9-]{1,62}[a-z0-9]$/
 
 function suggestSlug(name: string): string {

@@ -25,7 +25,7 @@ const NOW = new Date('2026-08-01T12:00:00.000Z')
 
 describe('the two sentences about secrets', () => {
   it('the API key one says scrypt and says it cannot be recovered', () => {
-    // Verbatim from `devplatform/src/server.ts:927`; `test/devplatform.test.ts` proves the two are
+    // Verbatim from `devplatform/src/server.ts:961`; `test/devplatform.test.ts` proves the two are
     // still identical against the real service.
     assert.match(SHOWN_ONCE, /only time this secret is shown/i)
     assert.match(SHOWN_ONCE, /scrypt/)

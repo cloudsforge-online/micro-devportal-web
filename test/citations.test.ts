@@ -156,17 +156,23 @@ describe('every citation names a line that exists', () => {
     assert.deepEqual(broken, [])
   })
 
-  it('reports which repositories were NOT available, rather than passing quietly', () => {
+  it('reports which repositories were NOT available, rather than passing quietly', (t) => {
     // Not a failure: `pnpm test` has to work for somebody who cloned only this repository. But an
-    // unmeasured citation must never look like a verified one, so the absence is printed and the CI
+    // unmeasured citation must never look like a verified one, so the absence is SKIPPED and the CI
     // job that has every sibling checked out is where it becomes fatal.
+    //
+    // `assert.ok(true)` is what this used to end in, and that is a pass — the run reported "0
+    // skipped" while a third of the citations had not been opened. `t.skip()` puts the fact in the
+    // column a reader compares between runs.
     const absent = SIBLINGS.filter((name) => {
       const root = siblingRoot(name)
       return root === undefined || !existsSync(root)
     })
     if (absent.length > 0) {
       console.log(`UNCHECKED: citations into ${absent.join(', ')} — those repositories are not checked out`)
+      t.skip(`citations into ${absent.join(', ')} — those repositories are not checked out`)
+      return
     }
-    assert.ok(true)
+    assert.deepEqual(absent, [], 'every sibling this repository cites was on disk')
   })
 })

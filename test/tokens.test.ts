@@ -51,8 +51,13 @@ describe('the stylesheet names only tokens that exist', () => {
   })
 
   if (TOKENS === undefined) {
-    it('SKIPPED: no micro-ui checkout — CI checks one out and requires this to run', () => {
-      assert.ok(true)
+    // A GREEN test named "SKIPPED" is still a pass: it counts towards the number a reader compares
+    // between runs, and this suite reported "0 skipped" while the whole cross-repository half had
+    // not run. `t.skip()` puts it where an unmeasured check belongs. The NAME keeps the exact words
+    // ci.yml greps for, so the workflow's "it skipped itself while micro-ui was present" guard
+    // still has something to match.
+    it('SKIPPED: no micro-ui checkout — CI checks one out and requires this to run', (t) => {
+      t.skip('micro-ui is not checked out; tokens.css was never read')
     })
   } else {
     const tokens = readFileSync(TOKENS, 'utf8')

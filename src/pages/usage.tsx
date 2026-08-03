@@ -1,8 +1,8 @@
 /**
  * Quotas and usage.
  *
- * Two reads: `GET /v1/projects/:id/quotas` (`devplatform/src/server.ts:1063`) and
- * `GET /v1/projects/:id/usage` (`devplatform/src/server.ts:1073`), both `project:read`.
+ * Two reads: `GET /v1/projects/:id/quotas` (`devplatform/src/server.ts:1097`) and
+ * `GET /v1/projects/:id/usage` (`devplatform/src/server.ts:1107`), both `project:read`.
  *
  * ══════════════════════════════════════════════════════════════════════════════════════════════
  * THIS SCREEN LOWERS A LIMIT AND CANNOT RAISE ONE, AND THAT IS THE SERVICE'S RULE RATHER THAN
@@ -12,7 +12,7 @@
  * `PUT /v1/projects/:id/quotas` was plain `project:write` and `setQuota` accepted any whole number
  * with no ceiling — the party the limit binds chose the limit. That was reported and
  * `micro-devplatform@e13c154` fixed it. **The direction is now the authority**
- * (`devplatform/src/server.ts:1038-1052`):
+ * (`devplatform/src/server.ts:1072-1086`):
  *
  *   * lowering, or writing the same value, is `project:write` — the customer's own safety feature;
  *   * raising is an operator's, and a browser can never be one: `devplatform:admin` is absent from
@@ -82,7 +82,7 @@ export function UsagePage() {
    *
    * Quota and usage rows carry ids; the names live on the project. Returning the row rather than a
    * string matters for the lowering control: `PUT …/quotas` wants the NAME in its body
-   * (`requireEnvironment`, `devplatform/src/server.ts:1014`), and a lookup that fell back to
+   * (`requireEnvironment`, `devplatform/src/server.ts:1048`), and a lookup that fell back to
    * echoing the id would produce a control that posts an id where a name belongs and gets a 400
    * naming a field the reader never filled in. No fallback: no row, no control.
    */
@@ -270,7 +270,7 @@ export function UsagePage() {
  * lowered a limit during an incident and expected traffic to stop immediately.
  *
  * The environment is passed by NAME because that is what the route's body wants
- * (`requireEnvironment`, `devplatform/src/server.ts:1014`) — the table renders names and the rows
+ * (`requireEnvironment`, `devplatform/src/server.ts:1048`) — the table renders names and the rows
  * carry ids, so the mapping happens once, in `nameOf`, rather than twice.
  */
 function LowerLimit({

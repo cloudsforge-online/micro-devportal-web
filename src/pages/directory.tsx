@@ -2,7 +2,7 @@
  * The public application directory, and one listing.
  *
  * Both routes behind this screen are PUBLIC and read no credential: `GET /v1/apps`
- * (`devplatform/src/server.ts:1263`) and `GET /v1/apps/:slug` (`devplatform/src/server.ts:1291`).
+ * (`devplatform/src/server.ts:1297`) and `GET /v1/apps/:slug` (`devplatform/src/server.ts:1325`).
  * They are outside the session gate for that reason — the directory is the one part of this product
  * aimed at somebody who is not a developer.
  *
@@ -15,7 +15,7 @@
  * the two it is. It used to say something stronger — that nothing in the estate could move a
  * listing from `in_review` to `listed`, so the directory could never fill. That was true and was
  * reported; `PUT /v1/projects/:id/application/status`
- * (`devplatform/src/server.ts:1344`) closed it, so the sentence is gone rather than softened.
+ * (`devplatform/src/server.ts:1378`) closed it, so the sentence is gone rather than softened.
  */
 import { Link, useParams } from 'react-router-dom'
 import { Empty, Failed, Loading, Note } from '../components/states.tsx'

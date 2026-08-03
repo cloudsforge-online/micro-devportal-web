@@ -67,12 +67,20 @@ test('index.html links every icon it ships, and ships every icon it links', () =
   }
 })
 
-test('the icons are this surface’s own, not the template’s placeholders', () => {
+test('the icons are this surface’s own, not the template’s placeholders', (t) => {
   // The template ships the company marks so that a freshly cut frontend is never iconless. Leaving
   // them in place passes every check above and puts the wrong brand in the tab.
+  //
+  // Without micro-brand every iteration `continue`d and the test passed having compared NOTHING —
+  // the same silent pass as an `if (!existsSync) return`, one level of nesting further in. The
+  // absence is now declared once, up front, so a run that could not compare says so.
+  if (!existsSync(at(BRAND))) {
+    t.skip('micro-brand is not checked out; no icon was compared against its source')
+    return
+  }
   for (const icon of [...REQUIRED_ICONS, 'favicon-512x512.png', OG_CARD]) {
     const source = at(`${BRAND}/${icon}`)
-    if (!existsSync(source)) continue
+    assert.ok(existsSync(source), `brand/assets/developers/${icon} is gone from micro-brand`)
     assert.deepEqual(
       readFileSync(at(`public/${icon}`)),
       readFileSync(source),
@@ -91,19 +99,25 @@ test('the og card is shipped, because this surface’s links are shared outward'
 test('and NO social banner, which is the one deliberate absence in this surface’s set', () => {
   // `brand/plan.ts` gives this surface `['mark', 'favicon', 'wordmark', 'og']` — not FULL. A
   // social banner here would be an asset with nowhere to go, and generating one costs money.
-  // Asserted in both directions: absent from public/, and absent upstream too, so that if the
-  // decision is ever revisited this test is what has to be revisited with it.
   assert.ok(!existsSync(at('public/social-1280x640.png')), 'a social banner has appeared in public/')
-  if (existsSync(at(BRAND))) {
-    const upstream = readdirSync(at(BRAND))
-    assert.ok(
-      !upstream.some((f) => f.startsWith('social')),
-      'micro-brand now ships a social banner for developers; this test is out of date',
-    )
-    // And the entitled set really is seven files, which is what makes "no social" a decision
-    // rather than an oversight.
-    assert.equal(upstream.length, 7, `brand/assets/developers holds ${upstream.length} files, not 7`)
+})
+
+test('and micro-brand does not ship one either, so the absence is a DECISION', (t) => {
+  // The upstream half of the rule above, split out rather than nested in an `if`. Inside the `if`
+  // it was invisible: with micro-brand absent the test reported a pass having checked only the
+  // local half, and "asserted in both directions" was true of the comment and not of the run.
+  if (!existsSync(at(BRAND))) {
+    t.skip('micro-brand is not checked out; the upstream half of "no social banner" did not run')
+    return
   }
+  const upstream = readdirSync(at(BRAND))
+  assert.ok(
+    !upstream.some((f) => f.startsWith('social')),
+    'micro-brand now ships a social banner for developers; this test is out of date',
+  )
+  // And the entitled set really is seven files, which is what makes "no social" a decision
+  // rather than an oversight.
+  assert.equal(upstream.length, 7, `brand/assets/developers holds ${upstream.length} files, not 7`)
 })
 
 test('the og:image is a RELATIVE path, so the card resolves against whichever origin served it', () => {
@@ -160,11 +174,16 @@ test('the accent and substrate are declared on <html>, before React can paint', 
   assert.match(HTML, /data-cf-substrate="warm"/)
 })
 
-test('the accent selector this page names really exists in tokens.css', () => {
+test('the accent selector this page names really exists in tokens.css', (t) => {
   // The check that would have caught admin's. A `data-cf-product` with no matching block is not an
   // error anywhere — the page simply inherits the company ember and nothing says so.
   const tokens = at('../ui/packages/ui/src/tokens.css')
-  if (!existsSync(tokens)) return // the sibling design system is not checked out; CI has it.
+  if (!existsSync(tokens)) {
+    // `return` here was a PASS, not a skip — the shape that let six checks in micro-explorer-web
+    // report success for work they never did. CI has micro-ui, so this only fires locally.
+    t.skip('micro-ui is not checked out; tokens.css was never read')
+    return
+  }
   assert.match(readFileSync(tokens, 'utf8'), /\[data-cf-product='developers'\]/)
 })
 

@@ -2,8 +2,8 @@
  * Webhook endpoints: register one, rotate its secret, disable it, delete it, read its deliveries.
  *
  * Five routes, and one of them returns a secret twice as often as any other in this service — a
- * rotation. `POST /v1/webhook-endpoints/:id/rotate-secret` (`devplatform/src/server.ts:1123`) is
- * wrapped for the reason the service states at `:1119-1121`: a retry without the wrapper "mints a
+ * rotation. `POST /v1/webhook-endpoints/:id/rotate-secret` (`devplatform/src/server.ts:1157`) is
+ * wrapped for the reason the service states at `:1153-1155`: a retry without the wrapper "mints a
  * second secret and retires the one the customer has just been shown but has not yet deployed".
  *
  * ══════════════════════════════════════════════════════════════════════════════════════════════
@@ -12,7 +12,7 @@
  *
  * `webhook_secrets` holds plaintext, because "HMAC is not a one-way function of an input we do not
  * have: signing a delivery requires the secret itself" (`devplatform/src/migrations.ts:59-66`). It
- * is still shown once — no route returns it afterwards (`devplatform/src/webhooks.ts:147`) — but
+ * is still shown once — no route returns it afterwards (`devplatform/src/webhooks.ts:148`) — but
  * saying it is hashed like an API key would be false. `WEBHOOK_SECRET_NOTE` in src/lib/format.ts is
  * the wording, and it is deliberately different from `SHOWN_ONCE`.
  * ══════════════════════════════════════════════════════════════════════════════════════════════
@@ -23,16 +23,16 @@
  * passed `true` unconditionally and had no inverse, so the only way back was to DELETE the
  * endpoint — new signing secret, delivery history gone, subscriber redeploys, during the incident
  * the endpoint was disabled for. That was reported and
- * `POST /v1/webhook-endpoints/:id/enable` (`devplatform/src/server.ts:1178`) is the answer.
+ * `POST /v1/webhook-endpoints/:id/enable` (`devplatform/src/server.ts:1212`) is the answer.
  *
  * It is still not drawn as a toggle. The service made it two verbs on purpose
- * (`devplatform/src/server.ts:1167-1170`): "a client that inverted the flag would silently do the
+ * (`devplatform/src/server.ts:1201-1204`): "a client that inverted the flag would silently do the
  * opposite of what its operator intended". One of these stops a customer's integration and the
  * other starts it, and a switch makes them look equally consequential.
  *
  * **Nothing is replayed on re-enabling**, and the screen says so, because the opposite is the
  * reasonable assumption. `enqueueDeliveries` selects `where e.disabled_at is null`
- * (`devplatform/src/webhooks.ts:380`), so while the endpoint was off nothing was queued for it —
+ * (`devplatform/src/webhooks.ts:381`), so while the endpoint was off nothing was queued for it —
  * an operator waiting for the backlog to arrive would wait for ever.
  */
 import { useState } from 'react'
@@ -121,13 +121,13 @@ export function WebhooksPage() {
 /**
  * Register an endpoint.
  *
- * **Wrapped, so an `Idempotency-Key` is required** (`devplatform/src/server.ts:1091`).
+ * **Wrapped, so an `Idempotency-Key` is required** (`devplatform/src/server.ts:1125`).
  *
  * Four refusals are the service's and are surfaced verbatim rather than pre-empted with a guess in
- * this bundle: https only with no loopback or link-local (`devplatform/src/webhooks.ts:106-136`,
+ * this bundle: https only with no loopback or link-local (`devplatform/src/webhooks.ts:107-137`,
  * which exists because an unchecked subscriber URL is a server-side request forgery primitive), at
- * least one topic and no wildcard topic (`devplatform/src/webhooks.ts:157-165`), and one endpoint
- * per `(environment, url)` (`devplatform/src/webhooks.ts:172-180`).
+ * least one topic and no wildcard topic (`devplatform/src/webhooks.ts:158-166`), and one endpoint
+ * per `(environment, url)` (`devplatform/src/webhooks.ts:173-181`).
  */
 function NewEndpoint({ projectId, onCreated }: { projectId: string; onCreated: () => void }) {
   const [url, setUrl] = useState('')
@@ -342,7 +342,7 @@ function EndpointControls({
           <p className="dp-once__extra">
             {/*
               The overlap is the number a rotation screen exists to print. `overlapMinutes` comes
-              from the response (`devplatform/src/server.ts:1138`), not from a constant here, because
+              from the response (`devplatform/src/server.ts:1172`), not from a constant here, because
               it is a deployed configuration value (`DEVPLATFORM_WEBHOOK_ROTATION_OVERLAP_MINUTES`,
               `devplatform/src/env.ts:213`) and a screen that guessed it would cause the outage it
               exists to prevent.
@@ -368,10 +368,10 @@ function EndpointControls({
 /**
  * The delivery log for one endpoint.
  *
- * The newest 50 (`devplatform/src/webhooks.ts:536-539`). **An abandoned delivery is not a pending
+ * The newest 50 (`devplatform/src/webhooks.ts:537-540`). **An abandoned delivery is not a pending
  * one**, and the distinction is the whole reason this list is worth rendering: a row past the
  * attempt ceiling is retained rather than deleted "because the row is the only record that a
- * customer was sent an event and never took it" (`devplatform/src/server.ts:289-294`), so it sits
+ * customer was sent an event and never took it" (`devplatform/src/server.ts:290-295`), so it sits
  * here for ever and would read as "still trying" without the badge.
  */
 function Deliveries({ endpointId }: { endpointId: string }) {

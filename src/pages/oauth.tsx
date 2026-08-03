@@ -1,8 +1,8 @@
 /**
  * OAuth clients: register one, list them, revoke one.
  *
- * Three routes: `POST /v1/projects/:id/oauth-clients` (`devplatform/src/server.ts:1207`, wrapped, so
- * an `Idempotency-Key` is required), `GET …` (`:1244`) and `DELETE /v1/oauth-clients/:id` (`:1249`).
+ * Three routes: `POST /v1/projects/:id/oauth-clients` (`devplatform/src/server.ts:1241`, wrapped, so
+ * an `Idempotency-Key` is required), `GET …` (`:1278`) and `DELETE /v1/oauth-clients/:id` (`:1283`).
  *
  * The client secret is shown once and there is no column it could be read back from: it is hashed
  * exactly as an API key's is, under the same `oauth_clients_slow_kdf_only` constraint
@@ -20,7 +20,7 @@
  * ── What this screen deliberately does not claim ──────────────────────────────────────────────
  *
  * Registering a client here does not make an authorisation flow work. `POST /internal/oauth/verify`
- * (`devplatform/src/server.ts:1392`) is the check identity's token endpoint WOULD call, and nothing
+ * (`devplatform/src/server.ts:1426`) is the check identity's token endpoint WOULD call, and nothing
  * calls it today. So the copy says a client can be registered and its secret verified, and does not
  * describe an end-to-end flow that has not been wired.
  */

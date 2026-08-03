@@ -8,11 +8,11 @@
  * ── Why `busy` is not merely cosmetic on THIS surface ─────────────────────────────────────────
  *
  * Four of this app's writes mint a credential, and each does it exactly once:
- * `POST /v1/projects/:id/keys` (`devplatform/src/server.ts:880`),
- * `POST /v1/projects/:id/webhook-endpoints` (`:1083`),
- * `POST /v1/webhook-endpoints/:id/rotate-secret` (`:1123`) and
- * `POST /v1/projects/:id/oauth-clients` (`:1207`). The service says what an unprotected double click
- * costs, in its own words at `devplatform/src/server.ts:871-873`: two credentials, "and the second
+ * `POST /v1/projects/:id/keys` (`devplatform/src/server.ts:912`),
+ * `POST /v1/projects/:id/webhook-endpoints` (`:1117`),
+ * `POST /v1/webhook-endpoints/:id/rotate-secret` (`:1157`) and
+ * `POST /v1/projects/:id/oauth-clients` (`:1241`). The service says what an unprotected double click
+ * costs, in its own words at `devplatform/src/server.ts:903-905`: two credentials, "and the second
  * is one the developer never sees and therefore never revokes — a live key with no owner".
  *
  * The `Idempotency-Key` those five routes require is what makes a RETRY safe. It is not what makes
@@ -87,7 +87,7 @@ export function useMutation<A extends unknown[], T>(
  *     in `src/lib/idempotency.ts`);
  *   * the attempt ends with the outcome KNOWN, success or refusal alike → drop it, so the next
  *     intent is a new one and an edited payload cannot collide with the old fingerprint
- *     (`devplatform/src/server.ts:445-447`).
+ *     (`devplatform/src/server.ts:446-448`).
  *
  * `reset()` drops the key too: it is what a screen calls when the user abandons the attempt.
  */

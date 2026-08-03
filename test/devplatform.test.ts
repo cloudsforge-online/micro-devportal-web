@@ -22,16 +22,26 @@
  * **3. HOW each route authenticates, not whether — and this service is the reason.** `micro-worlds-web`
  * greps each handler body for `await authenticate(ctx, deps)` and asserts a boolean. There is no
  * such literal inside ANY of devplatform's 35 `/v1` handlers: the call appears three times in the
- * file and all three are inside helpers (`server.ts:566`, `:573`, `:609`). Run here, the boolean
+ * file and all three are inside helpers (`server.ts:567`, `:574`, `:610`). Run here, the boolean
  * check would report all thirty-five routes public, including the twenty-nine that authenticate —
  * and a client built on that answer would send no bearer to the route that mints credentials. So
  * every route carries a MECHANISM and the handler body is matched against that mechanism's pattern.
  *
- * **4. NO LINE NUMBER IS EVER WRITTEN INSIDE A CHECK.** Two guards in `micro-trade-web` hardcoded
- * one, and when the service's route table moved, one of them went on PASSING while grading a
- * completely different function — a guard that cannot fail is worse than none. Every line this file
- * reads comes out of the `SURFACE`/`DECLINED` tables below, and the handler-body extractor walks
- * forward from the cited line to the next `define(` rather than to a number.
+ * **4. NO CHECK READS A HANDLER AT A LINE THIS REPOSITORY WROTE DOWN.** Two guards in
+ * `micro-trade-web` hardcoded one, and when the service's route table moved, one of them went on
+ * PASSING while grading a completely different function — a guard that cannot fail is worse than
+ * none. This file shipped a subtler version of the same thing and it fired: `bodyOf()` started at
+ * the line in the table, so when `micro-devplatform` grew 34 lines above its route table, three
+ * `none` routes and `DELETE /v1/webhook-endpoints/:id` went on PASSING while grading somebody
+ * else's handler. The one named `project:write` was reading `POST /v1/webhook-endpoints/:id/disable`,
+ * which really is `project:write` — a green test, about the wrong function.
+ *
+ * So the line a body is read from is now FOUND, not declared. `cite()` from `@cloudsforge/ui/cite`
+ * resolves `define('METHOD', '/path',` and refuses to answer unless EXACTLY ONE line matches, and
+ * every body check starts from what it found. The `line:` in the tables below is no longer an input
+ * to any behaviour check: it is a CLAIM about where the route sits, asserted against the resolved
+ * line and reported as a move rather than as ":880 is: some other code". The handler-body extractor
+ * still walks forward to the next `define(` rather than to a number.
  * ══════════════════════════════════════════════════════════════════════════════════════════════
  *
  * ── What happens without the sibling ──────────────────────────────────────────────────────────
@@ -46,6 +56,7 @@ import assert from 'node:assert/strict'
 import { existsSync, readFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import { afterEach, describe, it } from 'node:test'
+import { cite, type Citation } from '@cloudsforge/ui/cite'
 import { ApiError } from '../src/lib/api.ts'
 import { getProject, lowerQuota } from '../src/lib/devplatform.ts'
 import { installFetch, installWindow, json, removeWindow, type FetchStub } from './browser-stubs.ts'
@@ -72,7 +83,7 @@ const server = CANDIDATES.find((p) => existsSync(p))
  *
  * `operator`      The service had no notion of one. It has now: a SERVICE token carrying the exact
  *                 scope `devplatform:admin`, or a user token with the platform role `admin`
- *                 (`devplatform/src/server.ts:553-557`). An API key can never be one —
+ *                 (`devplatform/src/server.ts:554-558`). An API key can never be one —
  *                 `devplatform:admin` is deliberately absent from `scopes.ts`, so `validateScopes`
  *                 refuses it at issuance and no row can hold it. A browser cannot become an
  *                 operator by holding a key.
@@ -125,6 +136,15 @@ const ANY_MECHANISM = Object.values(MECHANISM)
 interface Route {
   readonly method: string
   readonly path: string
+  /**
+   * Where the service registered it when this table was last read — a CLAIM, never an input.
+   *
+   * Nothing below reads a handler at this number. It is asserted against the line `cite()` finds,
+   * so a service that moves its route table produces one failure per route that says what moved
+   * and where to, instead of thirty-one failures about handlers nobody meant to grade. It stays in
+   * the table because a repository that only says "wherever it is now" has stopped recording when
+   * it last looked.
+   */
   readonly line: number
   readonly auth: Auth
   /** True when the handler is wrapped in `withIdempotentRoute`, so the header is required. */
@@ -136,38 +156,42 @@ interface Route {
  *
  * Written down here as DATA so the checks below can be mechanical. If one of these citations is
  * wrong, the test fails and names it — which is the property a comment does not have.
+ *
+ * Read against `micro-devplatform@974e1ed`. The previous reading was `@e13c154`; three commits on
+ * 3 August inserted 32 lines above the route table and two more inside it, and every number here
+ * moved by 32 or 34 without one route changing its method, path, authority or idempotency.
  */
 const SURFACE: readonly Route[] = [
-  { method: 'GET', path: '/v1/scopes', line: 712, auth: 'none', idempotent: false },
-  { method: 'POST', path: '/v1/organisations', line: 745, auth: 'user+admin', idempotent: false },
-  { method: 'GET', path: '/v1/organisations', line: 784, auth: 'user+member', idempotent: false },
-  { method: 'GET', path: '/v1/organisations/:id', line: 799, auth: 'org:read', idempotent: false },
-  { method: 'GET', path: '/v1/organisations/:id/projects', line: 807, auth: 'org:read', idempotent: false },
-  { method: 'POST', path: '/v1/projects', line: 815, auth: 'org:write', idempotent: true },
-  { method: 'GET', path: '/v1/projects/:id', line: 838, auth: 'project:read', idempotent: false },
-  { method: 'POST', path: '/v1/projects/:id/service-accounts', line: 850, auth: 'project:write', idempotent: false },
-  { method: 'GET', path: '/v1/projects/:id/service-accounts', line: 861, auth: 'project:read', idempotent: false },
-  { method: 'POST', path: '/v1/projects/:id/keys', line: 880, auth: 'project:write', idempotent: true },
-  { method: 'GET', path: '/v1/projects/:id/keys', line: 934, auth: 'project:read', idempotent: false },
-  { method: 'DELETE', path: '/v1/keys/:id', line: 956, auth: 'project:write', idempotent: false },
-  { method: 'PUT', path: '/v1/projects/:id/quotas', line: 1011, auth: 'operator-or-lower', idempotent: false },
-  { method: 'GET', path: '/v1/projects/:id/quotas', line: 1063, auth: 'project:read', idempotent: false },
-  { method: 'GET', path: '/v1/projects/:id/usage', line: 1073, auth: 'project:read', idempotent: false },
-  { method: 'POST', path: '/v1/projects/:id/webhook-endpoints', line: 1083, auth: 'project:write', idempotent: true },
-  { method: 'GET', path: '/v1/projects/:id/webhook-endpoints', line: 1114, auth: 'project:read', idempotent: false },
-  { method: 'POST', path: '/v1/webhook-endpoints/:id/rotate-secret', line: 1123, auth: 'project:write', idempotent: true },
-  { method: 'POST', path: '/v1/webhook-endpoints/:id/disable', line: 1154, auth: 'project:write', idempotent: false },
-  { method: 'POST', path: '/v1/webhook-endpoints/:id/enable', line: 1178, auth: 'project:write', idempotent: false },
-  { method: 'DELETE', path: '/v1/webhook-endpoints/:id', line: 1188, auth: 'project:write', idempotent: false },
-  { method: 'GET', path: '/v1/webhook-endpoints/:id/deliveries', line: 1197, auth: 'project:read', idempotent: false },
-  { method: 'POST', path: '/v1/projects/:id/oauth-clients', line: 1207, auth: 'project:write', idempotent: true },
-  { method: 'GET', path: '/v1/projects/:id/oauth-clients', line: 1244, auth: 'project:read', idempotent: false },
-  { method: 'DELETE', path: '/v1/oauth-clients/:id', line: 1249, auth: 'project:write', idempotent: false },
-  { method: 'GET', path: '/v1/apps', line: 1263, auth: 'none', idempotent: false },
-  { method: 'GET', path: '/v1/apps/:slug', line: 1291, auth: 'none', idempotent: false },
-  { method: 'PUT', path: '/v1/projects/:id/application', line: 1298, auth: 'project:write', idempotent: false },
-  { method: 'GET', path: '/v1/projects/:id/application', line: 1312, auth: 'project:read', idempotent: false },
-  { method: 'POST', path: '/v1/projects/:id/application/submit', line: 1320, auth: 'project:write', idempotent: false },
+  { method: 'GET', path: '/v1/scopes', line: 744, auth: 'none', idempotent: false },
+  { method: 'POST', path: '/v1/organisations', line: 777, auth: 'user+admin', idempotent: false },
+  { method: 'GET', path: '/v1/organisations', line: 816, auth: 'user+member', idempotent: false },
+  { method: 'GET', path: '/v1/organisations/:id', line: 831, auth: 'org:read', idempotent: false },
+  { method: 'GET', path: '/v1/organisations/:id/projects', line: 839, auth: 'org:read', idempotent: false },
+  { method: 'POST', path: '/v1/projects', line: 847, auth: 'org:write', idempotent: true },
+  { method: 'GET', path: '/v1/projects/:id', line: 870, auth: 'project:read', idempotent: false },
+  { method: 'POST', path: '/v1/projects/:id/service-accounts', line: 882, auth: 'project:write', idempotent: false },
+  { method: 'GET', path: '/v1/projects/:id/service-accounts', line: 893, auth: 'project:read', idempotent: false },
+  { method: 'POST', path: '/v1/projects/:id/keys', line: 912, auth: 'project:write', idempotent: true },
+  { method: 'GET', path: '/v1/projects/:id/keys', line: 968, auth: 'project:read', idempotent: false },
+  { method: 'DELETE', path: '/v1/keys/:id', line: 990, auth: 'project:write', idempotent: false },
+  { method: 'PUT', path: '/v1/projects/:id/quotas', line: 1045, auth: 'operator-or-lower', idempotent: false },
+  { method: 'GET', path: '/v1/projects/:id/quotas', line: 1097, auth: 'project:read', idempotent: false },
+  { method: 'GET', path: '/v1/projects/:id/usage', line: 1107, auth: 'project:read', idempotent: false },
+  { method: 'POST', path: '/v1/projects/:id/webhook-endpoints', line: 1117, auth: 'project:write', idempotent: true },
+  { method: 'GET', path: '/v1/projects/:id/webhook-endpoints', line: 1148, auth: 'project:read', idempotent: false },
+  { method: 'POST', path: '/v1/webhook-endpoints/:id/rotate-secret', line: 1157, auth: 'project:write', idempotent: true },
+  { method: 'POST', path: '/v1/webhook-endpoints/:id/disable', line: 1188, auth: 'project:write', idempotent: false },
+  { method: 'POST', path: '/v1/webhook-endpoints/:id/enable', line: 1212, auth: 'project:write', idempotent: false },
+  { method: 'DELETE', path: '/v1/webhook-endpoints/:id', line: 1222, auth: 'project:write', idempotent: false },
+  { method: 'GET', path: '/v1/webhook-endpoints/:id/deliveries', line: 1231, auth: 'project:read', idempotent: false },
+  { method: 'POST', path: '/v1/projects/:id/oauth-clients', line: 1241, auth: 'project:write', idempotent: true },
+  { method: 'GET', path: '/v1/projects/:id/oauth-clients', line: 1278, auth: 'project:read', idempotent: false },
+  { method: 'DELETE', path: '/v1/oauth-clients/:id', line: 1283, auth: 'project:write', idempotent: false },
+  { method: 'GET', path: '/v1/apps', line: 1297, auth: 'none', idempotent: false },
+  { method: 'GET', path: '/v1/apps/:slug', line: 1325, auth: 'none', idempotent: false },
+  { method: 'PUT', path: '/v1/projects/:id/application', line: 1332, auth: 'project:write', idempotent: false },
+  { method: 'GET', path: '/v1/projects/:id/application', line: 1346, auth: 'project:read', idempotent: false },
+  { method: 'POST', path: '/v1/projects/:id/application/submit', line: 1354, auth: 'project:write', idempotent: false },
 ]
 
 /**
@@ -179,11 +203,11 @@ const SURFACE: readonly Route[] = [
  * keyed by these citations, and the last test in the first block requires each to be there.
  */
 const DECLINED: readonly Route[] = [
-  { method: 'GET', path: '/v1/keys/self', line: 732, auth: 'key', idempotent: false },
-  { method: 'GET', path: '/v1/keys/:id', line: 941, auth: 'project:read', idempotent: false },
-  { method: 'GET', path: '/v1/apps/pending', line: 1283, auth: 'operator', idempotent: false },
-  { method: 'PUT', path: '/v1/projects/:id/application/status', line: 1344, auth: 'operator', idempotent: false },
-  { method: 'POST', path: '/v1/events', line: 1471, auth: 'hmac', idempotent: false },
+  { method: 'GET', path: '/v1/keys/self', line: 764, auth: 'key', idempotent: false },
+  { method: 'GET', path: '/v1/keys/:id', line: 975, auth: 'project:read', idempotent: false },
+  { method: 'GET', path: '/v1/apps/pending', line: 1317, auth: 'operator', idempotent: false },
+  { method: 'PUT', path: '/v1/projects/:id/application/status', line: 1378, auth: 'operator', idempotent: false },
+  { method: 'POST', path: '/v1/events', line: 1505, auth: 'hmac', idempotent: false },
 ]
 
 const ALL: readonly Route[] = [...SURFACE, ...DECLINED]
@@ -521,15 +545,36 @@ describe('the client refuses, before the wire, what the service refuses on it', 
 
 describe('the cited lines are the lines that register the routes', () => {
   if (server === undefined) {
-    // NOT a silent pass. It says which check did not run, and CI makes the absence fatal.
-    it('SKIPPED: no micro-devplatform checkout — CI checks one out and requires this to run', () => {
-      assert.ok(true)
+    // NOT a silent pass, and no longer a loud one either: this was a GREEN test named "SKIPPED",
+    // which counted towards `pass` and towards the number a reader compares between runs. `t.skip()`
+    // puts it in the `skipped` column, where an unmeasured check belongs. The name keeps the exact
+    // words ci.yml greps for, so the workflow's "it skipped itself while the sibling was present"
+    // guard still has something to match.
+    it('SKIPPED: no micro-devplatform checkout — CI checks one out and requires this to run', (t) => {
+      t.skip('micro-devplatform is not checked out; the cross-repository half did not run')
     })
     return
   }
 
-  const source = readFileSync(server, 'utf8')
+  const found = server
+  const source = readFileSync(found, 'utf8')
   const lines = source.split('\n')
+
+  /**
+   * WHERE THE SERVICE REALLY REGISTERS A ROUTE — found by what the line SAYS.
+   *
+   * `cite()` refuses to answer unless exactly one line matches, so the anchor cannot quietly follow
+   * a second `define(` that appears later, and a route the service DELETES throws here naming the
+   * anchor rather than silently reading whatever moved into its old line. The trailing `',` is
+   * load-bearing: without it `define('GET', '/v1/apps'` also matches `/v1/apps/pending` and
+   * `/v1/apps/:slug`, and `cite()` would refuse all three for matching three lines.
+   */
+  const pins = new Map<Route, Citation>()
+  function pin(route: Route): Citation {
+    const at = pins.get(route) ?? cite(found, `define('${route.method}', '${route.path}',`)
+    pins.set(route, at)
+    return at
+  }
 
   it('reads a server with a route table in it, so this cannot pass on an empty file', () => {
     const defines = lines.filter((l) => /^\s{4}define\('/.test(l))
@@ -538,12 +583,16 @@ describe('the cited lines are the lines that register the routes', () => {
 
   for (const route of ALL) {
     it(`${route.method} ${route.path} is registered at devplatform/src/server.ts:${route.line}`, () => {
-      // 1-indexed citation, 0-indexed array.
-      const line = lines[route.line - 1] ?? ''
-      assert.match(
-        line,
-        new RegExp(`define\\('${route.method}',\\s*'${route.path.replace(/[/:]/g, '\\$&')}'`),
-        `devplatform/src/server.ts:${route.line} is:\n  ${line.trim()}`,
+      // The citation is asserted against the line the route was FOUND at, so the message names the
+      // move. The version this replaces printed ":880 is: <whatever now sits there>", which sends a
+      // reader to a handler that has nothing to do with the route in the test's own name.
+      const found = pin(route)
+      assert.equal(
+        found.line,
+        route.line,
+        `${route.method} ${route.path} moved: devplatform registers it at ` +
+          `devplatform/src/server.ts:${found.line}, and this repository still cites :${route.line}. ` +
+          'Update the table above and the matching citation in src/lib/devplatform.ts.',
       )
     })
   }
@@ -567,14 +616,19 @@ describe('the cited lines are the lines that register the routes', () => {
   })
 
   /**
-   * Read one handler body, by walking forward from the cited line to the next `define(`.
+   * Read one handler body, by walking forward from the route's OWN `define(` to the next one.
    *
-   * NO LINE NUMBER IS WRITTEN HERE. `micro-trade-web` hardcoded one in two guards, and when the
-   * service's table moved, one of them kept passing while grading a different function entirely.
-   * The start comes from the table, and the end is found by scanning.
+   * NO LINE NUMBER IS WRITTEN HERE, AND NONE IS READ OUT OF THE TABLE EITHER. `micro-trade-web`
+   * hardcoded one in two guards, and when the service's table moved, one of them kept passing while
+   * grading a different function entirely. This file's previous version took its start from
+   * `route.line`, which is the same defect one step removed: with the table 34 lines stale,
+   * `DELETE /v1/webhook-endpoints/:id authenticates by project:write` PASSED while reading
+   * `POST /v1/webhook-endpoints/:id/disable`, and the three `none` routes passed while reading
+   * three unrelated handlers that happen to match none of the mechanisms. Both ends are found now:
+   * the start by {@link pin}, the end by scanning.
    */
-  function bodyOf(line: number): string {
-    const start = line - 1
+  function bodyOf(route: Route): string {
+    const start = pin(route).line - 1
     let end = lines.length
     for (let i = start + 1; i < lines.length; i++) {
       if (/^\s{4}define\('/.test(lines[i] ?? '')) {
@@ -591,7 +645,7 @@ describe('the cited lines are the lines that register the routes', () => {
     // rather than quietly left describing something that has changed.
     for (const route of ALL) {
       assert.doesNotMatch(
-        bodyOf(route.line),
+        bodyOf(route),
         /await authenticate\(ctx, deps\)/,
         `${route.method} ${route.path} now calls authenticate() directly; a boolean check would ` +
           'suddenly become meaningful and the mechanism table needs re-reading',
@@ -607,7 +661,7 @@ describe('the cited lines are the lines that register the routes', () => {
 
   for (const route of ALL) {
     it(`${route.method} ${route.path} authenticates by ${route.auth}`, () => {
-      const body = bodyOf(route.line)
+      const body = bodyOf(route)
       if (route.auth === 'none') {
         for (const pattern of ANY_MECHANISM) {
           assert.doesNotMatch(
@@ -629,7 +683,7 @@ describe('the cited lines are the lines that register the routes', () => {
   it('the five wrapped routes are the five this client sends a header to', () => {
     for (const route of SURFACE) {
       assert.equal(
-        /withIdempotentRoute/.test(bodyOf(route.line)),
+        /withIdempotentRoute/.test(bodyOf(route)),
         route.idempotent,
         `${route.method} ${route.path}: the service ${route.idempotent ? 'should' : 'should not'} ` +
           'wrap this route, and does the opposite',
@@ -662,7 +716,7 @@ describe('the cited lines are the lines that register the routes', () => {
     // one first and compares the wrong string.
     const issuance = SURFACE.find((r) => r.method === 'POST' && r.path === '/v1/projects/:id/keys')
     assert.ok(issuance, 'the surface table no longer names the key-issuance route')
-    const theirs = /note: '([^']+)'/.exec(bodyOf(issuance.line))?.[1]
+    const theirs = /note: '([^']+)'/.exec(bodyOf(issuance))?.[1]
     assert.ok(theirs, 'devplatform no longer attaches a note to an issued key')
     assert.ok(
       format.includes(theirs),
@@ -755,7 +809,7 @@ describe('the cited lines are the lines that register the routes', () => {
   it('a non-operator may lower a quota and may not raise or create one', () => {
     const route = SURFACE.find((r) => r.method === 'PUT' && r.path === '/v1/projects/:id/quotas')
     assert.ok(route, 'the surface table no longer names the quota route')
-    const body = bodyOf(route.line)
+    const body = bodyOf(route)
     assert.match(
       body,
       /if \(!operator\) \{[\s\S]*maxUnits > current\.maxUnits[\s\S]*ForbiddenError/,

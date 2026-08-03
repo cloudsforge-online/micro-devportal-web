@@ -35,7 +35,7 @@ export function Fact({ label, children }: { label: string; children: ReactNode }
  * A value that may be absent, where absence is a real answer rather than a rendering problem.
  *
  * `missing` is the SENTENCE, not a dash. A key with `expiresAt: null` does not expire
- * (`devplatform/src/apikeys.ts:150`), and rendering that as an empty cell would leave a reader
+ * (`devplatform/src/apikeys.ts:151`), and rendering that as an empty cell would leave a reader
  * unsure whether the field failed to load or the key is permanent. Those want different actions.
  */
 export function Maybe({ value, missing }: { value: string | null; missing: string }) {
@@ -51,7 +51,7 @@ export function Maybe({ value, missing }: { value: string | null; missing: strin
  * **Deliberately not masked.** `display` is `cfk_<environment>_<lookup>` and the schema constrains
  * it to exactly that (`devplatform/src/migrations.ts:199`); there is no secret in it. It is what a
  * revocation is quoted by and what appears in every log line about the key
- * (`devplatform/src/apikeys.ts:142`). Masking it would suggest there is something in it to hide and
+ * (`devplatform/src/apikeys.ts:143`). Masking it would suggest there is something in it to hide and
  * would make the one string a developer needs to quote at support the one string they cannot read.
  */
 export function Identifier({ value }: { value: string }) {

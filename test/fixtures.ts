@@ -61,7 +61,7 @@ export const SIGNED_IN = {
   'cf.refreshToken': 'refresh-token-stub',
 }
 
-/** `GET /auth/me` as `identity/src/server.ts:1000-1012` returns it: the profile is nested. */
+/** `GET /auth/me` in `identity/src/server.ts` returns it this way: the profile is nested. */
 export const ME = {
   user: { id: 'aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee', handle: 'developer', roles: ['customer'] },
   session: { id: 'session-1' },

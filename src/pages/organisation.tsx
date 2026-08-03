@@ -1,24 +1,24 @@
 /**
  * One enrolled organisation: its status, its projects, and the form that creates another.
  *
- * Two reads (`GET /v1/organisations/:id` at `devplatform/src/server.ts:799` and
- * `GET /v1/organisations/:id/projects` at `:807`, both `org:read`) and one write
- * (`POST /v1/projects` at `:815`, `org:write` — owner or admin only).
+ * Two reads (`GET /v1/organisations/:id` at `devplatform/src/server.ts:831` and
+ * `GET /v1/organisations/:id/projects` at `:839`, both `org:read`) and one write
+ * (`POST /v1/projects` at `:847`, `org:write` — owner or admin only).
  *
  * ── A 404 here is not "somebody else's organisation" ──────────────────────────────────────────
  *
  * `authoriseOrg` throws `NotFoundError` when the caller's role does not permit the read
- * (`devplatform/src/server.ts:653-655`), which is the same answer as an id that does not exist.
+ * (`devplatform/src/server.ts:654-656`), which is the same answer as an id that does not exist.
  * That is deliberate — a 403 would confirm the id is real and make developer organisation ids
  * enumerable — so this screen must never tell somebody the organisation belongs to another
  * customer. It says what it can honestly say: it is not there for you.
  *
  * ── A suspended organisation is a fact worth rendering loudly ─────────────────────────────────
  *
- * `status` is `active` or `suspended` (`devplatform/src/orgs.ts:82-89`). A suspension is set by the
+ * `status` is `active` or `suspended` (`devplatform/src/orgs.ts:83-90`). A suspension is set by the
  * inbox when identity reports the organisation deleted, and it revokes every key the organisation
- * holds (`devplatform/src/server.ts:1525-1527`). The rows survive so reinstatement is one state
- * change rather than a re-issue of every credential (`devplatform/src/orgs.ts:171-178`) — so a
+ * holds (`devplatform/src/server.ts:1559-1576`). The rows survive so reinstatement is one state
+ * change rather than a re-issue of every credential (`devplatform/src/orgs.ts:172-179`) — so a
  * suspended organisation shows its projects and its keys, and says why none of them works.
  */
 import { useState } from 'react'
@@ -120,7 +120,7 @@ export function OrganisationPage() {
  * The create-project form.
  *
  * **`POST /v1/projects` is one of the five routes that require an `Idempotency-Key`**
- * (`devplatform/src/server.ts:819`), so the key is minted when the developer commits to the action
+ * (`devplatform/src/server.ts:851`), so the key is minted when the developer commits to the action
  * and kept only while the outcome is unknown. That decision lives in `keepKeyAfter` and the hook
  * applies it — see src/lib/idempotency.ts. A taken slug is a 409 `conflict`, which is a DECISION:
  * the key is dropped, because the next attempt will carry a different slug and re-presenting the

@@ -2,17 +2,17 @@
  * Session state for the tree, and the gate in front of the routes that need one.
  *
  * Hiding a route is NOT the security boundary. `devplatform` decides every question itself: a user
- * token is verified against identity's JWKS (`devplatform/src/server.ts:524`), the caller's role in
+ * token is verified against identity's JWKS (`devplatform/src/server.ts:525`), the caller's role in
  * an organisation is asked of identity PER REQUEST with the caller's own token forwarded
- * (`devplatform/src/server.ts:666`, `devplatform/src/membership.ts:95-129`), and a project or
+ * (`devplatform/src/server.ts:667`, `devplatform/src/membership.ts:95-129`), and a project or
  * organisation the caller may not see answers **404 rather than 403**
- * (`devplatform/src/server.ts:628`, `:654`) so that ids are not enumerable across customers. This
+ * (`devplatform/src/server.ts:629`, `:655`) so that ids are not enumerable across customers. This
  * gate exists so a signed-out developer is sent to sign in instead of being shown a console made
  * entirely of 401s.
  *
  * **Three of the ten screens are deliberately outside the gate**, because the service put their
- * routes outside it: `GET /v1/scopes` (`devplatform/src/server.ts:712`), `GET /v1/apps` (`:1263`)
- * and `GET /v1/apps/:slug` (`:1291`) read no credential at all. Sending an anonymous visitor to
+ * routes outside it: `GET /v1/scopes` (`devplatform/src/server.ts:744`), `GET /v1/apps` (`:1297`)
+ * and `GET /v1/apps/:slug` (`:1325`) read no credential at all. Sending an anonymous visitor to
  * sign in to read the scope vocabulary — the page written for somebody deciding whether to build
  * on this platform at all — would be the mirror of the estate's older mistake of sending a bearer
  * to a route that never wanted one. See `src/lib/routes.ts`.
@@ -21,9 +21,15 @@
  * ── The `/auth/me` shape ──────────────────────────────────────────────────────────────────────
  *
  * Identity answers `{ user: {...}, session: {...}, organisations: [...] }` — the profile is
- * NESTED under `user`. The route is `identity/src/server.ts:891-903` and the body is built by
- * `toPublicUser` at `identity/src/users.ts:52-63`; both citations were re-read against the source
- * for this repository rather than carried over, and both are correct as stated.
+ * NESTED under `user`. The route is `GET /auth/me` in `identity/src/server.ts` and the body is
+ * built by `toPublicUser` at `identity/src/users.ts:52-63`; both were re-read against the source
+ * for this repository rather than carried over.
+ *
+ * **The route citation names the FILE, not a line in it, and that is a correction.** It said
+ * `:891-903`. micro-identity's route table has since moved twice in one afternoon — 891 → 954 →
+ * 1000 — so the line existed and registered somebody else's route, which reads as verified and
+ * verifies nothing. `micro-explorer-web` reached the same conclusion an hour earlier and its
+ * `test/auth.test.ts` finds the handler by content. The file is the durable half of the claim.
  *
  * That shape is worth stating because the estate got it wrong once, at the root: the web template
  * declared `interface Me { handle?, roles? }` and read both fields off the TOP level, where they
@@ -61,8 +67,8 @@ import { AUTH_EXPIRED_EVENT, clearTokens, hasSession, nimbus, signIn, signOut } 
  * `listOrganisationsFor` selects `o.id, o.slug, o.name, o.kind, o.status, m.role` and joins the
  * membership (`identity/src/organisations.ts:148-159`), so the ROLE is on the wire. This app needs
  * both halves: the id is what `POST /v1/organisations` enrols
- * (`devplatform/src/server.ts:748`), and the role is what decides whether the attempt can possibly
- * succeed — devplatform re-asks identity for it and refuses anything below admin (`:752-753`).
+ * (`devplatform/src/server.ts:780`), and the role is what decides whether the attempt can possibly
+ * succeed — devplatform re-asks identity for it and refuses anything below admin (`:784-785`).
  *
  * The role is used to LABEL, never to authorise. The decision is made by devplatform against
  * identity on every request; a browser deciding it would be a browser deciding its own authority.
@@ -102,7 +108,7 @@ const NOBODY: Developer = { userId: null, handle: null, roles: [], organisations
  *
  * An organisation with no id is DROPPED rather than kept with a placeholder. The id is what an
  * enrolment names, and enrolling a guess would create a developer organisation against an identity
- * organisation the user has nothing to do with — the exact thing `devplatform/src/server.ts:749-751`
+ * organisation the user has nothing to do with — the exact thing `devplatform/src/server.ts:781-783`
  * exists to refuse.
  */
 export function readDeveloper(body: unknown): Developer {
@@ -150,7 +156,7 @@ function list(value: unknown): readonly string[] | undefined {
  * Which identity roles devplatform will accept for an enrolment.
  *
  * Copied from `devplatform/src/membership.ts:53` — `owner` and `admin`, nothing else — and used
- * only to say so on screen. `devplatform/src/server.ts:752-753` is where it is decided, against
+ * only to say so on screen. `devplatform/src/server.ts:784-785` is where it is decided, against
  * identity, with the caller's own token. This constant existing does not make the browser an
  * authority; it makes the screen honest about what will happen.
  */

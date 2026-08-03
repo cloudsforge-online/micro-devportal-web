@@ -2,7 +2,10 @@
  * `/auth/me` NESTS THE PROFILE UNDER `user`, AND THIS APP IS NESTED-ONLY.
  *
  * Identity answers `{ user: {...}, session: {...}, organisations: [...] }`
- * (`identity/src/server.ts:891-903`, body built by `toPublicUser` at `identity/src/users.ts:52-63`).
+ * (`GET /auth/me` in `identity/src/server.ts`, body built by `toPublicUser` at
+ * `identity/src/users.ts:52-63`). The route citation names the file rather than a line: it said
+ * `:891-903`, and micro-identity has moved that table to :954 and then :1000 since, so the number
+ * pointed at a real line that registers a different route.
  * The estate got this wrong once at the root — the web template declared `{ handle?, roles? }` and
  * read both off the TOP level, four frontends inherited it, and `isAdmin` in the shared bar was
  * false for every signed-in operator.
@@ -61,7 +64,7 @@ describe('reading the developer out of an /auth/me body', () => {
   it('DROPS an organisation with no id rather than inventing a placeholder', () => {
     // The id is what an enrolment names. A placeholder would enrol a developer organisation against
     // an identity organisation the user has nothing to do with — which devplatform refuses at
-    // `devplatform/src/server.ts:752-753`, but only after this app has asked it to.
+    // `devplatform/src/server.ts:784-785`, but only after this app has asked it to.
     const developer = readDeveloper({
       user: { id: 'u-1' },
       organisations: [{ name: 'No id', role: 'owner' }, { id: 'o-2', name: 'Fine', role: 'admin' }],
