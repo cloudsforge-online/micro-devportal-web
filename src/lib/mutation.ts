@@ -16,9 +16,41 @@
  * is one the developer never sees and therefore never revokes — a live key with no owner".
  *
  * The `Idempotency-Key` those five routes require is what makes a RETRY safe. It is not what makes
- * a double click safe, because the second click of a double click is a new intent as far as this
- * bundle is concerned — so the hook still refuses to start a second run while one is in flight, and
- * the buttons read the same flag so they are DISABLED rather than merely ignored.
+ * a double click safe — so the hook still refuses to start a second run while one is in flight.
+ *
+ * ══════════════════════════════════════════════════════════════════════════════════════════════
+ * ── THE GUARD IS A REF, AND WAS ONCE A PIECE OF STATE ─────────────────────────────────────────
+ *
+ * Both hooks below used to read `if (busy) return null` out of the render closure, under a comment
+ * asserting that "React batches the `setBusy(true)` below before the next click can be processed."
+ * **It does not.** `setBusy(true)` only SCHEDULES a render; two clicks dispatched in one tick both
+ * read `busy === false` from their own closures and both start a run. `disabled={busy}` has the
+ * identical hole from the other end — the attribute is not on the DOM node until the render
+ * commits, and the second event was dispatched before that.
+ *
+ * ── ON THIS SURFACE THE SECOND REQUEST DESTROYS A CREDENTIAL ──────────────────────────────────
+ *
+ * Not by minting a second one. `useIdempotentMutation` holds its key in a REF, so both same-tick
+ * attempts present THE SAME key and `devplatform`'s wrapper collapses them — that half was always
+ * right. The damage is subtler and worse.
+ *
+ * `POST /v1/projects/:id/keys` attaches the secret to the FIRST response and to nothing else, on
+ * purpose: "`minted` is null on a replay because the work did not run — which is precisely the
+ * behaviour that makes a replay safe" (`devplatform/src/server.ts:951-958`). The duplicate BLOCKS
+ * on the first transaction's uncommitted row (`devplatform/src/idempotency.ts:154-167`) and so
+ * always resolves LAST — and last write wins. `KeyForm` calls `setIssued(result)` inside the work,
+ * so the developer is left holding the REPLAY, whose `secretKey` is `null`.
+ *
+ * The outcome: the key was created, it is live, `<Replayed>` correctly says its secret "cannot be
+ * shown again" — and the developer never saw it once. That is a live credential with no owner,
+ * which is the exact artefact `devplatform/src/server.ts:903-905` says the wrapper exists to
+ * prevent, arrived at from the other end and manufactured entirely by this client. The same holds
+ * for the webhook secret, the rotation and the OAuth client secret.
+ *
+ * So: the latch is taken SYNCHRONOUSLY, before the first `await` and before the key is minted, and
+ * released in `finally` so a throw cannot wedge the form. `busy` survives as affordance only — a
+ * label and a `disabled` attribute — and is never the guard.
+ * ══════════════════════════════════════════════════════════════════════════════════════════════
  */
 import { useCallback, useRef, useState } from 'react'
 import { noticeFor, type ErrorNotice } from './api.ts'
@@ -37,16 +69,24 @@ export function useMutation<A extends unknown[], T>(
   fn: (...args: A) => Promise<T>,
   fallbackMessage: string,
 ): Mutation<A, T> {
+  // Not `useState`: the whole point is a value written and read in the same tick.
+  //
+  // Under `<StrictMode>` (src/main.tsx:29) React double-invokes the component function on mount,
+  // so this initialiser runs twice and one of the two refs is discarded. That is harmless — both
+  // start `false`, and from the first commit onwards there is exactly one ref, which is the one
+  // both clicks of a double click read. `test/double-submit.test.ts` proves every scenario in
+  // both modes, because a guard that has only ever run outside StrictMode is a guard that has
+  // never run the way this app runs it.
+  const latch = useRef(false)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<ErrorNotice | null>(null)
   const [result, setResult] = useState<T | null>(null)
 
   const run = useCallback(
     async (...args: A): Promise<T | null> => {
-      // Read from state rather than a ref on purpose: React batches the `setBusy(true)` below
-      // before the next click can be processed, and a ref here would make this hook's behaviour
-      // depend on scheduling rather than on state anybody can see.
-      if (busy) return null
+      // Synchronous, and before the first `await`. `busy` is affordance, never the guard.
+      if (latch.current) return null
+      latch.current = true
       setBusy(true)
       setError(null)
       try {
@@ -57,10 +97,14 @@ export function useMutation<A extends unknown[], T>(
         setError(noticeFor(err, fallbackMessage))
         return null
       } finally {
+        // The ref first, and both in the `finally`. Releasing after the `try` instead would leave
+        // the control permanently dead the first time the work threw — the failure mode that gets
+        // a latch deleted rather than fixed.
+        latch.current = false
         setBusy(false)
       }
     },
-    [busy, fn, fallbackMessage],
+    [fn, fallbackMessage],
   )
 
   const reset = useCallback(() => {
@@ -101,10 +145,17 @@ export function useIdempotentMutation<A extends unknown[], T>(
   // A ref, deliberately: the key must be readable by the very next call without waiting for a
   // render, and it is never displayed, so nothing renders from it.
   const key = useRef<string | null>(null)
+  // The same reasoning one level up, and the reason a same-tick duplicate here was never a second
+  // credential but WAS a destroyed one. See the header.
+  const latch = useRef(false)
 
   const run = useCallback(
     async (...args: A): Promise<T | null> => {
-      if (busy) return null
+      // Before the key is minted, not after: a second entrant that got as far as reading
+      // `key.current` would send the same key and collapse into a replay whose `secretKey` is
+      // null, and that replay resolves last and wins.
+      if (latch.current) return null
+      latch.current = true
       setBusy(true)
       setError(null)
       const attempt = key.current ?? newIdempotencyKey()
@@ -119,10 +170,11 @@ export function useIdempotentMutation<A extends unknown[], T>(
         setError(noticeFor(err, fallbackMessage))
         return null
       } finally {
+        latch.current = false
         setBusy(false)
       }
     },
-    [busy, fn, fallbackMessage],
+    [fn, fallbackMessage],
   )
 
   const reset = useCallback(() => {

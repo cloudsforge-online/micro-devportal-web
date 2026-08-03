@@ -54,7 +54,7 @@
  */
 import assert from 'node:assert/strict'
 import { Window } from 'happy-dom'
-import type { ReactElement } from 'react'
+import { StrictMode, createElement, type ReactElement } from 'react'
 
 /* ── the globals a React tree touches ───────────────────────────────────────────────────────── */
 
@@ -166,6 +166,21 @@ export interface MountOptions {
    * what the browser hands the wallet cannot be written without one.
    */
   windowExtras?: Record<string, unknown>
+  /**
+   * Mount inside `<StrictMode>`, the way `src/main.tsx:29` actually mounts this app.
+   *
+   * Default `false`, because most scenarios do not care and StrictMode doubles every render. It
+   * matters for one class: a guard held in a `useRef` is CREATED TWICE on a StrictMode mount and
+   * a `useState` initialiser is INVOKED TWICE, so a latch proven only here has never been run the
+   * way the app runs it.
+   *
+   * This flag is load-bearing rather than decorative, and `test/double-submit.test.ts` has a
+   * meta-test that proves it: a probe counts its own render passes and asserts the count DIFFERS
+   * between the two modes. Without that meta-test a `strict` option that silently did nothing
+   * would turn every paired scenario into the same test written twice — which is how three repos
+   * in the previous sweep shipped a StrictMode assertion that had never once exercised StrictMode.
+   */
+  strict?: boolean
 }
 
 export interface Screen {
@@ -474,8 +489,13 @@ export async function mount(element: ReactElement, options: MountOptions = {}): 
     })
   }
 
+  // Wrapped for BOTH the first render and every `rerender`, so a scenario cannot start in
+  // StrictMode and silently leave it half way through.
+  const wrap = (node: ReactElement): ReactElement =>
+    options.strict === true ? createElement(StrictMode, null, node) : node
+
   await act(async () => {
-    root.render(element)
+    root.render(wrap(element))
   })
   await flush()
 
@@ -619,7 +639,7 @@ export async function mount(element: ReactElement, options: MountOptions = {}): 
     settle: flush,
     async rerender(next) {
       await act(async () => {
-        root.render(next)
+        root.render(wrap(next))
       })
       await flush()
     },
