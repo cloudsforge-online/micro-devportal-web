@@ -51,6 +51,12 @@ const SIBLINGS: readonly string[] = [
   'org',
   'hub-api',
   'service-template',
+  // `src/lib/obs.ts` cites the ingest contract it has to satisfy — `RUM_KINDS`, the `RumSample`
+  // field list, the `kind` CHECK, and the line that reads `samples` — because that contract is a
+  // set of line numbers in another repository and not a document. Listed here so those citations
+  // are CHECKED: unlisted, they resolve as paths inside this repository, and the last time the two
+  // drifted apart every browser event in the estate was silently discarded for months.
+  'lantern',
 ]
 
 /** Where a sibling is checked out. `micro-devplatform` and `devplatform` are the same directory. */

@@ -108,8 +108,34 @@ describe('nothing implies a secret can be recovered', () => {
     // acknowledgement. A stored copy would outlive the dialog that explains what it is.
     for (const file of FILES) {
       if (file.name === 'src/lib/api.ts') continue // the token store, which is not a devplatform secret
+      if (file.name === 'src/lib/obs.ts') continue // the RUM session id, pinned by the check below
       assert.doesNotMatch(file.code, /localStorage|sessionStorage|document\.cookie/, file.name)
     }
+  })
+
+  /**
+   * `src/lib/obs.ts` is exempted above, so the exemption is PINNED here rather than trusted.
+   *
+   * That file is the estate's shared browser reporter — byte-identical in seventeen frontends, and
+   * copied from `web-template` rather than re-derived, because sixteen independent derivations of
+   * one judgement is how the last defect in it survived for months. It touches `sessionStorage` for
+   * exactly one thing: a per-TAB random id that lets two samples from one session be joined. It is
+   * not a devplatform secret, it is not derived from one, and it dies with the tab.
+   *
+   * A bare `continue` would make that file a hole this whole describe cannot see into — the same
+   * "check that cannot fail" the exemption is meant to avoid. So instead: obs.ts may use
+   * sessionStorage, under one named key, and may not use `localStorage` or `document.cookie` at
+   * all. A future edit that stores anything else there turns this red.
+   */
+  it('and the one exempted file stores only the RUM session id, under one key', () => {
+    const obs = FILES.find((f) => f.name === 'src/lib/obs.ts')
+    assert.ok(obs, 'src/lib/obs.ts is exempted above but is not in the sweep; the exemption is stale')
+    // Nothing durable, and nothing a server ever sees on a request it did not ask for.
+    assert.doesNotMatch(obs!.code, /localStorage|document\.cookie/, 'obs.ts may use sessionStorage and nothing else')
+    const uses = [...obs!.code.matchAll(/sessionStorage\.(\w+)\(([^)]*)\)/g)].map((m) => `${m[1]}(${m[2]})`)
+    assert.deepEqual(uses, ["getItem('cf-obs-session')", "setItem('cf-obs-session', minted)"])
+    // And what goes under that key is minted, not read off anything the user typed or was shown.
+    assert.match(obs!.code, /const minted =\s*\n?\s*typeof crypto !== 'undefined'/)
   })
 })
 
