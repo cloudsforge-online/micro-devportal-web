@@ -182,6 +182,18 @@ jobs:
           token: ${{ secrets.ESTATE_READ_TOKEN }}
           sparse-checkout: |
             src
+      # The browser telemetry sink. `src/lib/obs.ts` cites its record shape by line — `fromWire`,
+      # `RUM_KINDS`, the `kind` CHECK and the line that reads `samples` — because that contract is
+      # the reason every browser event this bundle sent was silently discarded for months, and a
+      # contract quoted from memory is exactly how it went wrong. The step below treats an
+      # UNCHECKED citation as fatal, so citing lantern without checking it out is not an option.
+      - uses: actions/checkout@v4
+        with:
+          repository: cloudsforge-online/micro-lantern
+          path: lantern
+          token: ${{ secrets.ESTATE_READ_TOKEN }}
+          sparse-checkout: |
+            src
 
       # Pinned, because the checkout lives at devportal-web/ and the action looks for the
       # packageManager field in the workspace root, where there is no package.json.
@@ -555,7 +567,16 @@ jobs:
 
       - name: A secret is never persisted
         # It lives in one component's props and in the caller's state, and is cleared on
-        # acknowledgement. src/lib/api.ts holds the SESSION tokens and is the one exemption.
+        # acknowledgement. src/lib/api.ts holds the SESSION tokens and is one exemption.
+        #
+        # src/lib/obs.ts is the other, and it is NOT exempted on trust: it is the estate's shared
+        # browser reporter, byte-identical in seventeen frontends, and it touches sessionStorage
+        # for one thing — a per-tab random id that lets two samples from one session be joined. It
+        # is not a devplatform secret, is not derived from one, and dies with the tab. What that
+        # file may do with storage is pinned by `test/render.test.ts` ("the one exempted file
+        # stores only the RUM session id, under one key"), which runs in the Test step above and
+        # fails on a localStorage, a document.cookie, or any second key. This exemption is
+        # therefore narrower than it looks, and the check that narrows it is not this one.
         #
         # COMMENTS STRIPPED FIRST — and this step is why the rule is worth restating rather than
         # assuming. Its first version did not strip them, and it failed the build on
@@ -568,6 +589,7 @@ jobs:
           fail=0
           for f in $(find src -name '*.ts' -o -name '*.tsx'); do
             [ "$f" = "src/lib/api.ts" ] && continue
+            [ "$f" = "src/lib/obs.ts" ] && continue
             if strip "$f" | grep -nE 'localStorage|sessionStorage|document\.cookie' | sed "s|^|$f:|" | grep .; then
               fail=1
             fi
