@@ -62,6 +62,7 @@ import { MemoryRouter, Route, Routes as RouterRoutes } from 'react-router-dom'
 
 import { withScreen, type Routes } from './dom.ts'
 import * as fx from './fixtures.ts'
+import { ApiError } from '../src/lib/api.ts'
 import { AuthProvider } from '../src/lib/auth.tsx'
 import { useIdempotentMutation, useMutation } from '../src/lib/mutation.ts'
 import { KeysPage } from '../src/pages/keys.tsx'
@@ -383,6 +384,131 @@ for (const strict of [false, true]) {
           [{ ok: true }],
           'a successful run did not answer with its value, so every caller that branches on ' +
             '`result !== null` silently stops navigating, reloading and clearing its form',
+        )
+      })
+    })
+
+    /*
+     * ── THE KEY'S LIFECYCLE, WHICH IS A SEPARATE QUESTION FROM THE LATCH ────────────────────
+     *
+     * The latch decides how many requests ONE INTENT sends. The key decides whether a SECOND
+     * INTENT is a replay of the first or a new operation, and getting it wrong is how a retry
+     * after a lost response mints a second credential — the exact failure the header exists to
+     * prevent, implemented by the client meant to prevent it.
+     *
+     * Three mutations of the key lifecycle survived the whole suite until these were added:
+     * minting a fresh key on every attempt, never dropping it after a success, and dropping it
+     * after every failure regardless of whether the outcome was known.
+     */
+
+    it(`keeps the key when the outcome is UNKNOWN, so a retry replays (${mode})`, async () => {
+      // A 503 means the work may still be committing. Presenting a NEW key then is not a retry,
+      // it is a second operation — and on these routes a second operation is a second credential.
+      const keys: string[] = []
+      let attempt = 0
+      const Probe = (): ReactElement => {
+        const m = useIdempotentMutation(async (key: string) => {
+          keys.push(key)
+          attempt += 1
+          await new Promise((r) => setTimeout(r, 10))
+          if (attempt === 1) throw new ApiError(503, 'the service is unavailable', 'unavailable')
+          return 'done'
+        }, 'It did not work.')
+        return h(
+          'div',
+          null,
+          h('button', { type: 'button', onClick: () => void m.run() }, 'Do the thing'),
+          h('p', null, 'Idle, and long enough to clear the forty-character floor.'),
+        )
+      }
+
+      await withScreen(h(Probe), { url: ORIGIN, strict }, async (s) => {
+        const button = s.byRole('button', 'Do the thing')
+        await s.click(button)
+        await s.settle(40)
+        await s.click(button)
+        await s.settle(40)
+        assert.equal(keys.length, 2, 'the retry did not happen, so this proves nothing')
+        assert.equal(
+          keys[0],
+          keys[1],
+          'the retry after an UNKNOWN outcome presented a different key, so the service will treat ' +
+            'it as a new operation and mint a second credential — which is the failure the ' +
+            '`Idempotency-Key` exists to prevent',
+        )
+      })
+    })
+
+    it(`drops the key once the outcome is KNOWN, so the next intent is a new one (${mode})`, async () => {
+      // The other half. Reusing a spent key for a genuinely new request is refused as
+      // `idempotency_key_reuse` when the body differs (devplatform/src/server.ts:446-448), and
+      // silently REPLAYS the old answer when it does not — which tells a developer their second
+      // key was created when it was not.
+      const keys: string[] = []
+      const Probe = (): ReactElement => {
+        const m = useIdempotentMutation(async (key: string) => {
+          keys.push(key)
+          await new Promise((r) => setTimeout(r, 10))
+          return 'done'
+        }, 'It did not work.')
+        return h(
+          'div',
+          null,
+          h('button', { type: 'button', onClick: () => void m.run() }, 'Do the thing'),
+          h('p', null, 'Idle, and long enough to clear the forty-character floor.'),
+        )
+      }
+
+      await withScreen(h(Probe), { url: ORIGIN, strict }, async (s) => {
+        const button = s.byRole('button', 'Do the thing')
+        await s.click(button)
+        await s.settle(40)
+        await s.click(button)
+        await s.settle(40)
+        assert.equal(keys.length, 2, 'the second attempt did not happen, so this proves nothing')
+        assert.notEqual(
+          keys[0],
+          keys[1],
+          'a second, deliberate press reused the first press\'s spent key — the service either ' +
+            'refuses it as key reuse or replays the first answer, and the developer is told a ' +
+            'credential exists that was never created',
+        )
+      })
+    })
+
+    it(`drops the key after a KNOWN refusal too, not only after a success (${mode})`, async () => {
+      // A 400 is an answer: the work definitely did not happen. Holding the key would collide the
+      // corrected payload with the rejected one's fingerprint.
+      const keys: string[] = []
+      let attempt = 0
+      const Probe = (): ReactElement => {
+        const m = useIdempotentMutation(async (key: string) => {
+          keys.push(key)
+          attempt += 1
+          await new Promise((r) => setTimeout(r, 10))
+          if (attempt === 1) throw new ApiError(400, 'the scopes are not valid', 'bad_request')
+          return 'done'
+        }, 'It did not work.')
+        return h(
+          'div',
+          null,
+          h('button', { type: 'button', onClick: () => void m.run() }, 'Do the thing'),
+          h('p', null, 'Idle, and long enough to clear the forty-character floor.'),
+        )
+      }
+
+      await withScreen(h(Probe), { url: ORIGIN, strict }, async (s) => {
+        const button = s.byRole('button', 'Do the thing')
+        await s.click(button)
+        await s.settle(40)
+        await s.click(button)
+        await s.settle(40)
+        assert.equal(keys.length, 2, 'the corrected attempt did not happen, so this proves nothing')
+        assert.notEqual(
+          keys[0],
+          keys[1],
+          'the corrected payload was sent under the REJECTED attempt\'s key, so it collides with ' +
+            'that fingerprint instead of being the new operation it is',
         )
       })
     })
