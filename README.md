@@ -368,7 +368,7 @@ console still never sends a malformed id.
 **4. The dev port is an allocation, not a fact.** The registry gives `developers` 3012 and
 `devplatform` binds 4000. This is the sixth instance in the estate — after `admin` (3002 vs 4014),
 `emberkin` (3014 vs 4100), `foresight` (4021 read as beacon's 4011), `create` (4004 vs 4000) and
-`worlds-api` (4002 vs 4000). It is not fixed with a literal port here, because a hard-coded host is a
+`worlds-api` (4002 vs 4000 — that row has since been deleted along with the hostname). It is not fixed with a literal port here, because a hard-coded host is a
 second unversioned copy of the registry and the copy is the one that goes stale. Reported to
 micro-ui; the reconciliation is the `PORT=3012` line above, and `test/hosts.test.ts` pins both halves
 so the day either moves, the suite names the other.

@@ -8,8 +8,10 @@
  * ══════════════════════════════════════════════════════════════════════════════════════════════
  * ONE SURFACE KEY, NOT TWO, AND THAT IS A DECISION WITH A REASON RATHER THAN A DEFAULT.
  *
- * `micro-worlds-web` uses two keys — `worlds` for the product and `worlds-api` for the service —
- * because the registry gives its service a host of its own. There is no `developers-api` row: the
+ * `micro-worlds-web` uses two keys — `worlds` for the product and `api` for the service — because
+ * the registry gives its service a host of its own. (That second key was `worlds-api` until
+ * 2026-08-05, when the hostname was folded into `api.` and its row deleted; the two-key SHAPE is
+ * what matters here, not which key.) There is no `developers-api` row: the
  * registry has ONE `developers` entry (`ui/packages/ui/src/surfaces.ts:384-395`), so this bundle
  * and `micro-devplatform` share `developers.<apex>`, `apiBase()` collapses to `''` in production,
  * and every request from this bundle is relative.
@@ -45,8 +47,8 @@
  *
  * This is the SIXTH instance of a devPort that is an allocation pretending to be a fact — after
  * `admin` (registry 3002, `admin-api` binds 4014), `emberkin` (3014, binds 4100), `foresight`
- * (4021 read as beacon's 4011), `create` (4004, `mint` binds 4000) and `worlds-api` (4002, `worlds`
- * binds 4000). It is NOT fixed with a literal port here: a hard-coded host is a second,
+ * (4021 read as beacon's 4011), `create` (4004, `mint` binds 4000) and `worlds-api` (4002,
+ * `worlds` binds 4000 — that row has since been deleted with the hostname). It is NOT fixed with a literal port here: a hard-coded host is a second,
  * unversioned copy of the registry, and the copy is the one that goes stale. The README says
  * `PORT=3012 pnpm start`, in one line, next to the citation. Reported to micro-ui.
  *
