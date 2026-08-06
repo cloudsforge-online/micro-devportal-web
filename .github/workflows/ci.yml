@@ -713,13 +713,19 @@ jobs:
 
       - name: Every design token this stylesheet names is a real one
         # test/tokens.test.ts proves it against the sibling checkout. This is the half that runs
-        # without one: the ten property names micro-mint-web invented are refused by name. Comments
+        # without one: the property names micro-mint-web invented are refused by name. Comments
         # are stripped first, for the same reason the nginx step strips them: the stylesheet's own
         # header quotes the property names it forbids in order to explain why.
+        #
+        # `critical` LEFT THIS LIST, having been re-read rather than believed. It was invented when
+        # the palette had no such token; @cloudsforge/ui 1.1 declares `--cf-critical: #d2543a`
+        # (`ui/packages/ui/src/tokens.css:360`) along with `--cf-critical-text` (:361). The other
+        # nine names are still absent from tokens.css and still refused. Dropping it is not a
+        # weakening: the rule that made `--cf-critical` dangerous is now checked directly, below.
         run: |
           set -uo pipefail
           css=$(perl -0pe 's{/\*.*?\*/}{}gs' src/styles.css)
-          if printf '%s\n' "$css" | grep -nE 'var\(--cf-(border|radius-md|space-[1-5][^a-z0-9-]|status-(good|warn|crit)|critical|warning|font[^-])'; then
+          if printf '%s\n' "$css" | grep -nE 'var\(--cf-(border|radius-md|space-[1-5][^a-z0-9-]|status-(good|warn|crit)|warning|font[^-])'; then
             echo "::error::that custom property does not exist in tokens.css; see the header of src/styles.css"
             exit 1
           fi
@@ -731,7 +737,16 @@ jobs:
             echo "::error::no literal colours; every colour comes from a token"
             exit 1
           fi
-          echo "ok: real tokens only, no fallbacks, no literals"
+          # The base severity/accent steps are validated at 3:1 — the floor for a border, a fill or
+          # an outline. Type needs 4.5:1, which is the same name with `-text`: `--cf-critical` is
+          # 3.38:1 and must never meet a `color:`. Mirrors the assertion in test/tokens.test.ts, so
+          # the sibling-free half of this guard covers the rule too. `[^-]` keeps `border-color:`,
+          # `background-color:` and `border-left-color:` out of it — those take the base step.
+          if printf '%s\n' "$css" | grep -nE '(^|[^-])color:[[:space:]]*var\(--cf-(accent|good|warn|critical)\)'; then
+            echo "::error::color: was given the 3:1 fill step; the 4.5:1 text step is that name with -text"
+            exit 1
+          fi
+          echo "ok: real tokens only, no fallbacks, no literals, text steps on type"
 
   image:
     name: Docker image
