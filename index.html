@@ -13,23 +13,79 @@
 
   'warm' is the ash ramp the brand marks in brand/assets/developers/ are drawn on, and the one
   every other frontend in the estate uses.
+
+  data-cf-scheme is the third of the three, added with @cloudsforge/ui 1.1. `auto` follows the
+  reader's operating system; `light` and `dark` force one. It is set here, statically, for the same
+  reason the other two are — a page that paints before the attribute lands flashes the default and
+  then changes colour, and a theme flash is worse than a theme nobody asked for.
+
+  There is no local light scope in src/styles.css to remove: this surface never had one. What DID
+  have to go was `body { color-scheme: dark }`, which is not a theme but is the half of one that
+  breaks the other — tokens.css sets `color-scheme` on <html> per scheme, and a declaration on
+  <body> wins for the whole body subtree, so every form control and scrollbar in the console would
+  have stayed dark on a light page.
 -->
-<html lang="en-GB" data-cf-product="developers" data-cf-substrate="warm">
+<html lang="en-GB" data-cf-product="developers" data-cf-substrate="warm" data-cf-scheme="auto">
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <meta name="colour-scheme" content="dark" />
+    <!--
+      `color-scheme`, spelled the way the specification spells it. This file carried
+      `name="colour-scheme"` — the British spelling, which is not a registered meta name and which
+      therefore did nothing at all, in every browser, since this surface shipped. The value is both
+      schemes because the token layer now serves both: this tag tells the browser which form
+      controls and scrollbars to draw, and `data-cf-scheme` on <html> tells @cloudsforge/ui which
+      palette to resolve.
+    -->
+    <meta name="color-scheme" content="dark light" />
     <!--
       The build that produced this bundle. Stamped by the Dockerfile, read by src/lib/obs.ts, and
       the reason an error report can be pinned to the deploy that introduced it. It is an identity
       rather than a configuration: it names the artefact, it does not tell it where it is running.
     -->
     <meta name="cf-release" content="dev" />
+    <!--
+      THE GOOGLE ANALYTICS MEASUREMENT ID, AND NOT THE GOOGLE ANALYTICS TAG.
+      ────────────────────────────────────────────────────────────────────────────────────────
+      There is deliberately no third-party analytics `<script src=…>` anywhere in this file, and
+      there must never be one. The tag's own host is not even spelled out in this comment, so that
+      a grep for it over this file returns NOTHING AT ALL and the absence is checkable rather than
+      merely asserted — `test/consent.test.ts` runs exactly that grep, over the raw bytes,
+      comments included.
+
+      The stock snippet fetches that script and sets `_ga` on load — before any banner has been
+      drawn, let alone answered — and under ePrivacy Art. 5(3) an analytics cookie set before
+      consent is a violation that a banner underneath it does not cure. This estate is separately
+      under GDPR review and every screen behind this console's session gate mints or revokes a
+      credential, which makes "we will tidy the analytics later" the wrong order to do things in.
+      `@cloudsforge/ui/consent` injects the tag from exactly one place: the Accept button in
+      `CookieBanner`. See the header of that module for the whole argument.
+
+      It is a meta tag rather than a build-time environment variable because
+      test/no-build-time-config.test.ts greps for those and fails the build — an artefact with an
+      environment frozen into it is not the artefact that passed CI. This is the same mechanism
+      `cf-release` above already uses, and the ID is an identity rather than a configuration: it
+      names the property, it does not tell the bundle where it is running. An absent or empty
+      value means analytics is simply off, which is what a local `pnpm dev` gets.
+    -->
+    <meta name="cf-analytics" content="G-NB8DNLTKZQ" />
 
     <!--
-      The description says what the product is AND the one property a developer most needs to know
-      before they use it, in the same sentence, because this string is the one that ends up in a
-      search result.
+      THE SHELL AND THE RENDERED PAGE ARE TWO DIFFERENT ARTEFACTS, AND THIS FILE IS THE ONE A
+      LINK-PREVIEW FETCHER GETS.
+
+      The description below is `ROOT_DESCRIPTION` in src/lib/meta.ts, byte for byte, and the title
+      is what `surfaceMeta('developers')` composes from the registry. They are duplicated here
+      because a static document cannot import, and `test/meta.test.ts` asserts the two copies are
+      identical rather than trusting anybody to remember.
+
+      That test exists because `site` was bitten by exactly this: its application copy was
+      rewritten, every rendered page changed, its suite stayed green, and the tab, the search
+      result and every social card went on carrying the old sentence for as long as it took
+      somebody to open the served HTML rather than the page.
+
+      It says what the product is AND the one property a developer most needs to know before they
+      use it, in the same sentence, because this string is the one that ends up in a search result.
     -->
     <meta
       name="description"
@@ -65,14 +121,27 @@
       surrounding page, so it is the easiest place to imply that a key could be recovered.
     -->
     <meta property="og:type" content="website" />
-    <meta property="og:title" content="CloudsForge Developer Platform" />
+    <!--
+      `og:site_name` is new here, and it is what keeps the company on the card now that the title
+      is the registry name rather than a hand-typed "CloudsForge Developer Platform". `metaTags()`
+      emits it on every route at runtime; a link-preview fetcher runs none of that, so the shell
+      has to carry it too or a shared link reads as a product nobody can place.
+    -->
+    <meta property="og:site_name" content="CloudsForge" />
+    <meta property="og:title" content="Developer Platform" />
     <meta
       property="og:description"
-      content="Projects, API keys, OAuth clients, webhooks and quotas. A key's secret is shown once and stored under scrypt; it cannot be recovered by anyone, including us."
+      content="Enrol an organisation, create a project, and issue an API key with the exact scopes it needs. A key's secret is shown once, at the moment it is created, and cannot be recovered afterwards."
     />
     <meta property="og:image" content="/og-1200x630.png" />
 
-    <title>CloudsForge Developer Platform</title>
+    <!--
+      `surfaceMeta('developers').title`, which is the registry's `name` and nothing else. It read
+      "CloudsForge Developer Platform" until 1.1 — one of the sixteen hand-typed copies of a string
+      the registry already held, and the company prefix is now carried by `og:site_name` above and
+      by the shared bar on the page itself.
+    -->
+    <title>Developer Platform</title>
   </head>
   <body>
     <div id="root"></div>

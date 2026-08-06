@@ -17,9 +17,18 @@
  * The favicons and the OG card in `public/` come from that set. Reported to micro-ui; not papered
  * over here with a locally drawn mark, which would be this repository inventing brand.
  */
-import { CloudsForgeBar, CloudsForgeFooter } from '@cloudsforge/ui'
-import { NavLink, Outlet } from 'react-router-dom'
+import { useEffect } from 'react'
+import {
+  CloudsForgeBar,
+  CloudsForgeFooter,
+  CookieBanner,
+  MainRegion,
+  SkipLink,
+} from '@cloudsforge/ui'
+import { applyHead } from '@cloudsforge/ui/seo'
+import { NavLink, Outlet, useLocation } from 'react-router-dom'
 import { PRODUCT } from '../lib/hosts.ts'
+import { metaFor } from '../lib/meta.ts'
 import { NAV } from '../lib/routes.ts'
 import { useSession } from '../lib/auth.tsx'
 
@@ -28,11 +37,15 @@ export function AppShell({ unregistered = false }: { unregistered?: boolean }) {
 
   return (
     <>
-      {/* Skip link first in the DOM: the key list and the scope table are both long, and a keyboard
-          user should not have to tab the whole navigation to reach them. */}
-      <a className="dp-skip" href="#main">
-        Skip to the page
-      </a>
+      {/*
+        The skip link is the first focusable thing in the document, and it is now the SHARED one.
+        This surface had a local `.dp-skip` anchor pointing at `#main`; the component points at
+        `MAIN_ID` and `MainRegion` below carries the `tabIndex={-1}` that the local pair did not.
+        Without it the fragment SCROLLS the page in Chrome and Safari and leaves focus on the link,
+        so the next Tab goes back to the second item in the bar — a skip link that looks like it
+        works and does not.
+      */}
+      <SkipLink />
       <CloudsForgeBar
         current={PRODUCT}
         account={account}
@@ -57,7 +70,8 @@ export function AppShell({ unregistered = false }: { unregistered?: boolean }) {
           ))}
         </div>
       </nav>
-      <main className="dp-main" id="main">
+      <DocumentMeta />
+      <MainRegion className="dp-main">
         {/*
           Not fatal, so not a refusal — the scope vocabulary and the public directory are worth
           serving from anywhere. But louder here than on a product page, and for a reason.
@@ -82,7 +96,7 @@ export function AppShell({ unregistered = false }: { unregistered?: boolean }) {
           </p>
         )}
         <Outlet />
-      </main>
+      </MainRegion>
 
       {/*
         The company footer, from @cloudsforge/ui. Not written here, and deliberately not
@@ -97,6 +111,44 @@ export function AppShell({ unregistered = false }: { unregistered?: boolean }) {
         operator should be able to reach Admin from any page.
       */}
       <CloudsForgeFooter current={PRODUCT} account={account} />
+
+      {/*
+        LAST IN THE DOCUMENT, AND THEREFORE LAST IN THE TAB ORDER.
+
+        That is deliberate: the banner is a dialog and is explicitly NOT modal, so a developer who
+        came here to read the scope vocabulary can read it and answer afterwards. A consent banner
+        that traps focus is the coercion the regulation is about.
+
+        It renders nothing at all until it knows this reader has not already answered, nothing on a
+        surface whose shell carries no measurement ID, and nothing on a local or preview hostname —
+        because there is nothing to consent TO in any of those cases. The tag itself is injected
+        from exactly one place in the estate, the Accept button inside this component; there is no
+        gtag snippet in `index.html` and there must never be one. See the header of
+        `@cloudsforge/ui/consent` for the whole argument.
+      */}
+      <CookieBanner />
     </>
   )
+}
+
+/**
+ * Keep `document.title`, the description, the Open Graph tags, the robots directive and the
+ * canonical link in step with the address.
+ *
+ * A component in the shell rather than a hook called by each page, because the failure mode of the
+ * second shape is the page that forgets to call it — and the page that forgets is the one added
+ * last, which is the one nobody has bookmarked yet and therefore the one nobody notices is titled
+ * with the previous page's title.
+ *
+ * The construction of the tags is a pure function in `lib/meta.ts` with its own test. This is only
+ * the part that touches the DOM, and `applyHead` updates each tag IN PLACE rather than appending,
+ * so a client-side navigation does not leave the previous page's description in the head beside
+ * the current one.
+ */
+function DocumentMeta() {
+  const { pathname } = useLocation()
+  useEffect(() => {
+    applyHead(metaFor(pathname), window.location.origin)
+  }, [pathname])
+  return null
 }

@@ -17,7 +17,7 @@
  *
  * The names that DO exist and are used below:
  *   borders   --cf-line, --cf-line-strong                     (never a "border" token)
- *   states    --cf-success, --cf-warn, --cf-danger            (never a "status" or "critical" one)
+ *   states    --cf-good, --cf-warn, --cf-critical             (never a "status" one)
  *   radii     --cf-radius-sm, --cf-radius, --cf-radius-lg     (never a "md")
  *   spacing   --cf-space-3xs … --cf-space-3xl                 (never a numbered scale)
  *   type      --cf-font-sans, --cf-font-mono, --cf-font-display
@@ -25,6 +25,26 @@
  * A `var(--undefined, #hex)` is not a repair either: it is a hard-coded colour wearing a token's
  * clothes, and it stops following the substrate the moment somebody switches the ash ramp. There
  * is one literal colour in this file and it is `transparent`.
+ *
+ * ══════════════════════════════════════════════════════════════════════════════════════════════
+ * EVERY COLOUR HAS TWO STEPS, AND WHICH ONE IS RIGHT DEPENDS ON WHAT IT DRAWS.
+ *
+ * @cloudsforge/ui 1.1 measured the palette on both schemes and found the accents and the critical
+ * colour were being asked to do a job they had never cleared. `--cf-accent` is validated at 3:1,
+ * which is the WCAG floor for a border, a fill, an outline or a stroke — and this surface's azure
+ * `#4a86e0` measures 3.85:1 on the tightest dark ground, which is a legal border and illegal text.
+ * `--cf-accent-text` is the 4.5:1 step (`#5293f4`, 4.56:1). The severity trio is the same shape:
+ * `--cf-critical` `#d2543a` is 3.38:1 and `--cf-critical-text` `#f86546` is 4.63:1.
+ *
+ * So below: `color:` takes `--cf-accent-text`, `--cf-good-text`, `--cf-warn-text` and
+ * `--cf-critical-text`; `border`, `background`, `outline` and `border-*-color` take the base step.
+ * A badge whose word and whose edge are the same hue therefore names two tokens, on purpose.
+ *
+ * `--cf-success` and `--cf-danger` — which this file used everywhere before 1.1 — survive upstream
+ * as ALIASES of the text steps (`tokens.css:390-391`), so nothing here was illegible. They are
+ * gone from this file anyway: an alias that resolves to the text step is silently wrong the moment
+ * it is used as a fill, which is what `.dp-meter__bar--crit` and `.dp-confirm` were doing. Naming
+ * the step you mean costs one word and cannot be wrong by accident.
  * ══════════════════════════════════════════════════════════════════════════════════════════════
  */
 
@@ -49,31 +69,38 @@
   box-sizing: border-box;
 }
 
+/*
+ * `color-scheme` IS NOT DECLARED HERE ANY MORE, AND ITS ABSENCE IS THE POINT.
+ *
+ * This rule used to end `color-scheme: dark`, with the comment "the bar is dark on every surface;
+ * the page follows the substrate". The first half is still true — `CloudsForgeBar` pins `.cf-dark`
+ * on itself. The second half stopped being true with @cloudsforge/ui 1.1, which added a light
+ * scheme: `tokens.css` declares `color-scheme` on the `[data-cf-scheme]` scopes, i.e. on <html>,
+ * and `index.html` selects `auto`.
+ *
+ * A declaration on `body` wins for the whole body subtree over the one on <html>, so leaving it
+ * would have kept every native control, every scrollbar and every date picker in this console
+ * drawn dark on a light page — the exact failure this rule was written to prevent, inverted. The
+ * declaration that replaces it is `<meta name="color-scheme" content="dark light">` in the shell,
+ * which is what a browser reads before any stylesheet has arrived.
+ */
 body {
   margin: 0;
   background: var(--cf-bg);
   color: var(--cf-fg);
   font-family: var(--cf-font-sans);
-  /* The bar is dark on every surface; the page follows the substrate. */
-  color-scheme: dark;
 }
 
 /* ---- the frame -------------------------------------------------------- */
 
-.dp-skip {
-  position: absolute;
-  left: -9999px;
-  top: 0;
-  z-index: 100;
-  padding: var(--cf-space-sm) var(--cf-space-lg);
-  background: var(--cf-accent);
-  color: var(--cf-accent-ink);
-  border-radius: 0 0 var(--cf-radius) 0;
-}
-
-.dp-skip:focus {
-  left: 0;
-}
+/*
+ * `.dp-skip` IS GONE. The skip link is `SkipLink` from @cloudsforge/ui, styled as `.cf-skip`.
+ *
+ * The local pair was an anchor to `#main` and a `<main id="main">` with no `tabIndex`, which is
+ * the version that looks right and does not work: a `<main>` is not focusable by default, so in
+ * Chrome and Safari the fragment scrolls the page, leaves focus on the link, and the next Tab goes
+ * back into the bar. `MainRegion` sets `tabIndex={-1}`; that is the whole difference.
+ */
 
 .dp-subnav {
   position: sticky;
@@ -107,8 +134,9 @@ body {
   color: var(--cf-fg);
 }
 
+/* The word takes the 4.5:1 text step; the 2px rule under it takes the 3:1 border step. */
 .dp-subnav__link.is-active {
-  color: var(--cf-accent);
+  color: var(--cf-accent-text);
   border-bottom-color: var(--cf-accent);
 }
 
@@ -194,7 +222,7 @@ body {
 }
 
 .dp-sections__link.is-active {
-  color: var(--cf-accent);
+  color: var(--cf-accent-text);
   border-bottom-color: var(--cf-accent);
 }
 
@@ -337,18 +365,18 @@ body {
 
 /* The word is always present; the colour is the third channel, never the only one. */
 .dp-badge--good {
-  color: var(--cf-success);
-  border-color: var(--cf-success);
+  color: var(--cf-good-text);
+  border-color: var(--cf-good);
 }
 
 .dp-badge--warn {
-  color: var(--cf-warn);
+  color: var(--cf-warn-text);
   border-color: var(--cf-warn);
 }
 
 .dp-badge--crit {
-  color: var(--cf-danger);
-  border-color: var(--cf-danger);
+  color: var(--cf-critical-text);
+  border-color: var(--cf-critical);
 }
 
 .dp-badge--idle {
@@ -372,7 +400,7 @@ body {
 
 .dp-state--failed {
   border-style: solid;
-  border-color: var(--cf-danger);
+  border-color: var(--cf-critical);
 }
 
 .dp-state--forbidden {
@@ -462,7 +490,7 @@ body {
 }
 
 .dp-note--crit {
-  border-left-color: var(--cf-danger);
+  border-left-color: var(--cf-critical);
 }
 
 .dp-note__icon {
@@ -578,7 +606,7 @@ body {
   display: grid;
   gap: var(--cf-space-sm);
   padding: var(--cf-space-md);
-  border: 1px solid var(--cf-danger);
+  border: 1px solid var(--cf-critical);
   border-radius: var(--cf-radius-sm);
   background: var(--cf-bg-raised);
   max-inline-size: 34rem;
@@ -631,7 +659,7 @@ body {
 }
 
 .dp-meter__bar--good {
-  background: var(--cf-success);
+  background: var(--cf-good);
 }
 
 .dp-meter__bar--warn {
@@ -639,7 +667,7 @@ body {
 }
 
 .dp-meter__bar--crit {
-  background: var(--cf-danger);
+  background: var(--cf-critical);
 }
 
 .dp-meter__bar--idle {
@@ -725,7 +753,7 @@ body {
 .dp-once__flag {
   margin: 0;
   font-size: var(--cf-text-2xl);
-  color: var(--cf-accent);
+  color: var(--cf-accent-text);
 }
 
 .dp-once__title {
@@ -786,7 +814,7 @@ body {
 
 .dp-once__hint {
   margin: 0;
-  color: var(--cf-warn);
+  color: var(--cf-warn-text);
   font-size: var(--cf-text-xs);
 }
 
@@ -809,9 +837,11 @@ body {
   border-color: var(--cf-accent-hover);
 }
 
+/* The edge is the 3:1 fill step and the label is the 4.5:1 text step: a button whose word is the
+   only thing distinguishing "Revoke" from "Cancel" is a button whose word has to be legible. */
 .cf-btn--danger {
-  border-color: var(--cf-danger);
-  color: var(--cf-danger);
+  border-color: var(--cf-critical);
+  color: var(--cf-critical-text);
 }
 
 .cf-btn:disabled {

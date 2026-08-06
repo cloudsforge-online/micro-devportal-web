@@ -111,20 +111,69 @@ describe('the stylesheet names only tokens that exist', () => {
       }
     })
 
-    it('the four names the brief warned about are not tokens, and the real ones are', () => {
-      // Asserted in both directions so a reader can see which is which without opening tokens.css.
-      for (const wrong of ['--cf-border', '--cf-critical', '--cf-warning', '--cf-font']) {
+    it('the names the brief warned about are not tokens, and the real ones are', () => {
+      /*
+       * `--cf-critical` WAS ON THIS LIST AND HAS BEEN TAKEN OFF IT, AND THAT IS A CORRECTION.
+       *
+       * It read `['--cf-border', '--cf-critical', '--cf-warning', '--cf-font']`, and it was right
+       * when it was written. @cloudsforge/ui 1.1 then added the measured severity trio —
+       * `--cf-critical` `#d2543a` as the 3:1 fill step beside `--cf-critical-text` `#f86546` at
+       * 4.63:1 (`tokens.css:360-361`) — so this assertion has been RED on `main` ever since, for
+       * the reason the assertion beside it spells out in its own message: "now exists upstream;
+       * this test is out of date". It was. Enforcing a stale list against a design system that has
+       * moved is how a suite trains its readers to ignore it.
+       *
+       * `--cf-warning` and `--cf-font` are still nothing: the real names are `--cf-warn` and
+       * `--cf-font-sans`/`--cf-font-mono`/`--cf-font-display`. `--cf-border` is still nothing
+       * either — it is `--cf-line`.
+       */
+      for (const wrong of ['--cf-border', '--cf-warning', '--cf-font']) {
         assert.ok(!defined.has(wrong), `${wrong} is defined after all; this comment is wrong`)
       }
       for (const right of [
         '--cf-line',
         '--cf-line-strong',
-        '--cf-danger',
         '--cf-warn',
         '--cf-font-sans',
+        // The two-step pairs this stylesheet now names explicitly rather than through the
+        // `--cf-success`/`--cf-danger` aliases. Both halves of each pair, because the whole point
+        // of the distinction is that a fill and a word take DIFFERENT ones.
+        '--cf-good',
+        '--cf-good-text',
+        '--cf-warn-text',
+        '--cf-critical',
+        '--cf-critical-text',
+        '--cf-accent',
+        '--cf-accent-text',
       ]) {
         assert.ok(defined.has(right), `${right} is not defined; the stylesheet is built on it`)
       }
+    })
+
+    it('uses the TEXT step wherever a token is a colour and the BASE step wherever it is not', () => {
+      /*
+       * THE RULE @cloudsforge/ui 1.1 EXISTS TO ENFORCE, checked on this file rather than trusted.
+       *
+       * `--cf-accent` and `--cf-critical` are validated at 3:1 — the WCAG floor for a border, a
+       * fill, an outline or a stroke. `--cf-accent-text` and `--cf-critical-text` are the 4.5:1
+       * text step. A `color:` taking the base step is illegal text that looks fine to whoever wrote
+       * it, which is precisely why it needs a machine to notice.
+       *
+       * Scanned as declarations rather than by eye: every `color: var(--cf-…)` in the file, with
+       * the four base severity/accent names refused.
+       */
+      const BASE_ONLY = ['--cf-accent', '--cf-good', '--cf-warn', '--cf-critical']
+      const colours = [...CSS.matchAll(/(?<!-)\bcolor:\s*var\((--cf-[a-z0-9-]+)\)/g)].map(
+        (m) => m[1] ?? '',
+      )
+      assert.ok(colours.length >= 10, `found ${colours.length} color declarations`)
+      const wrong = colours.filter((name) => BASE_ONLY.includes(name))
+      assert.deepEqual(
+        wrong,
+        [],
+        `src/styles.css sets color: to ${wrong.join(', ')} — the 3:1 fill step. ` +
+          'The 4.5:1 text step is the same name with `-text` on the end.',
+      )
     })
   }
 })
