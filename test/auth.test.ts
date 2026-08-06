@@ -3,9 +3,9 @@
  *
  * Identity answers `{ user: {...}, session: {...}, organisations: [...] }`
  * (`GET /auth/me` in `identity/src/server.ts`, body built by `toPublicUser` at
- * `identity/src/users.ts:52-63`). The route citation names the file rather than a line: it said
- * `:891-903`, and micro-identity has moved that table to :954 and then :1000 since, so the number
- * pointed at a real line that registers a different route.
+ * `identity/src/users.ts`). The route citation names the file rather than a line: it named a
+ * thirteen-line range, and micro-identity has moved that table twice since, so the range pointed
+ * at real lines that register a different route.
  * The estate got this wrong once at the root — the web template declared `{ handle?, roles? }` and
  * read both off the TOP level, four frontends inherited it, and `isAdmin` in the shared bar was
  * false for every signed-in operator.
@@ -64,7 +64,7 @@ describe('reading the developer out of an /auth/me body', () => {
   it('DROPS an organisation with no id rather than inventing a placeholder', () => {
     // The id is what an enrolment names. A placeholder would enrol a developer organisation against
     // an identity organisation the user has nothing to do with — which devplatform refuses at
-    // `devplatform/src/server.ts:784-785`, but only after this app has asked it to.
+    // `devplatform/src/server.ts`, but only after this app has asked it to.
     const developer = readDeveloper({
       user: { id: 'u-1' },
       organisations: [{ name: 'No id', role: 'owner' }, { id: 'o-2', name: 'Fine', role: 'admin' }],
@@ -106,7 +106,7 @@ describe('which roles may enrol an organisation', () => {
   })
 
   it('refuses every other organisation role identity can issue', () => {
-    // `devplatform/src/membership.ts:42` lists five: owner, admin, member, billing, read. Only the
+    // `devplatform/src/membership.ts` lists five: owner, admin, member, billing, read. Only the
     // first two are ADMIN_ROLES.
     for (const role of ['member', 'billing', 'read', 'unknown', '']) {
       assert.equal(mayEnrol({ id: 'o', name: 'n', slug: 's', role }), false, role)

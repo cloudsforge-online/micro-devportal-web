@@ -24,17 +24,17 @@
  *
  *   1. `POST /v1/projects/:id/keys` attaches the secret to the FIRST response and to nothing
  *      else, deliberately — "`minted` is null on a replay because the work did not run, which is
- *      precisely the behaviour that makes a replay safe" (`devplatform/src/server.ts:951-958`).
+ *      precisely the behaviour that makes a replay safe" (`devplatform/src/server.ts`).
  *      There is no column it could be read back from: `api_keys` stores only salt and hash, under
- *      a CHECK that refuses anything but scrypt (`devplatform/src/migrations.ts:204`).
+ *      a CHECK that refuses anything but scrypt (`devplatform/src/migrations.ts`).
  *   2. The duplicate BLOCKS on the first transaction's uncommitted row and replays once it
- *      commits (`devplatform/src/idempotency.ts:154-167`), so it always resolves LAST.
+ *      commits (`devplatform/src/idempotency.ts`), so it always resolves LAST.
  *   3. `IssueKey` calls `setIssued(result)` inside the work, so last write wins.
  *
  * The developer therefore ends holding the REPLAY, whose `secretKey` is `null`. `<Replayed>`
  * then renders — and it is telling the truth, which is what makes this so bad: the key WAS
  * created, it IS live, and its secret genuinely cannot be shown again. It was simply never shown
- * once. That is a live key with no owner, the exact artefact `devplatform/src/server.ts:903-905`
+ * once. That is a live key with no owner, the exact artefact `devplatform/src/server.ts`
  * says its wrapper exists to prevent, manufactured entirely by this client.
  *
  * The same shape holds for the webhook secret, the rotation and the OAuth client secret.
@@ -47,7 +47,7 @@
  *
  * ── AND BOTH WAYS ROUND ───────────────────────────────────────────────────────────────────────
  *
- * `src/main.tsx:29` renders under `<StrictMode>`; this harness mounted without it until this file
+ * `src/main.tsx` renders under `<StrictMode>`; this harness mounted without it until this file
  * added `strict`. A ref latch is CREATED TWICE on a StrictMode mount, so a guard proven only in
  * the plain mode has never been run the way the app runs it. Every proof below runs twice — and
  * `strict` is itself proven by the meta-test at the top, because three repos in the previous
@@ -441,7 +441,7 @@ for (const strict of [false, true]) {
 
     it(`drops the key once the outcome is KNOWN, so the next intent is a new one (${mode})`, async () => {
       // The other half. Reusing a spent key for a genuinely new request is refused as
-      // `idempotency_key_reuse` when the body differs (devplatform/src/server.ts:446-448), and
+      // `idempotency_key_reuse` when the body differs (devplatform/src/server.ts), and
       // silently REPLAYS the old answer when it does not — which tells a developer their second
       // key was created when it was not.
       const keys: string[] = []
@@ -567,7 +567,7 @@ for (const strict of [false, true]) {
 
     it(`and the developer is SHOWN the secret, not told it can never be shown (${mode})`, async () => {
       // The half that matters to a person, and the one nothing on this page masks: `IssueKey`
-      // renders outside the list's `state === 'ok'` branch (src/pages/keys.tsx:59), so the
+      // renders outside the list's `state === 'ok'` branch (src/pages/keys.tsx), so the
       // reload after a success does not unmount it and take `issued` with it.
       await withScreen(
         keysAt(),

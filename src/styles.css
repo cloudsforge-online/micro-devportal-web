@@ -41,7 +41,7 @@
  * A badge whose word and whose edge are the same hue therefore names two tokens, on purpose.
  *
  * `--cf-success` and `--cf-danger` — which this file used everywhere before 1.1 — survive upstream
- * as ALIASES of the text steps (`tokens.css:390-391`), so nothing here was illegible. They are
+ * as ALIASES of the text steps (`tokens.css`), so nothing here was illegible. They are
  * gone from this file anyway: an alias that resolves to the text step is silently wrong the moment
  * it is used as a fill, which is what `.dp-meter__bar--crit` and `.dp-confirm` were doing. Naming
  * the step you mean costs one word and cannot be wrong by accident.
@@ -824,7 +824,7 @@ body {
  * `.cf-btn` is the design system's. These modifiers are this app's, because ui.css ships
  * `.cf-btn` and `.cf-btn--ember` only — there is no `--primary` or `--danger` upstream, and using
  * a class the design system does not define would render an unstyled button rather than fail.
- * Checked against `ui/packages/ui/src/ui.css:116-168` rather than assumed.
+ * Checked against `ui/packages/ui/src/ui.css` rather than assumed.
  */
 .cf-btn--primary {
   border-color: var(--cf-accent);

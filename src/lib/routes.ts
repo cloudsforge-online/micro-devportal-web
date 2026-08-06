@@ -46,8 +46,8 @@ export interface AppRoute {
   /**
    * True when the route renders without a session.
    *
-   * Read off the SERVICE rather than chosen. `GET /v1/scopes` (`devplatform/src/server.ts:744`),
-   * `GET /v1/apps` (`:1297`) and `GET /v1/apps/:slug` (`:1325`) read no credential at all — their
+   * Read off the SERVICE rather than chosen. `GET /v1/scopes` (`devplatform/src/server.ts`),
+   * `GET /v1/apps` and `GET /v1/apps/:slug` read no credential at all — their
    * handlers take no principal and no `authorization` header is looked at anywhere on their path.
    * Putting a screen built from them behind the session gate would send an anonymous visitor to
    * sign in to read something the service would have handed them.
@@ -59,7 +59,7 @@ export const ROUTES: readonly AppRoute[] = [
   // ────────────────────────────────────────────────────────────────────────────────────────────
   // THE INDEX IS THE PLATFORM AND THE SCOPE VOCABULARY, AND IT IS PUBLIC.
   //
-  // `GET /v1/scopes` is served to anybody, and `devplatform/src/server.ts:740-742` says why: it "is
+  // `GET /v1/scopes` is served to anybody, and `devplatform/src/server.ts` says why: it "is
   // a property of the platform rather than of any customer, and a developer choosing scopes before
   // they have a key is exactly who needs it". The person this page is written for has not signed
   // in yet and is deciding whether to.
@@ -68,19 +68,19 @@ export const ROUTES: readonly AppRoute[] = [
   // Your developer organisations: which identity organisations you administer, which are enrolled,
   // and the projects inside one. Wildcard: `/organisations/<uuid>` is one enrolled organisation.
   // Behind the gate: `POST /v1/organisations` needs a user token AND an admin role
-  // (`devplatform/src/server.ts:778`, `:784-785`).
+  // (`devplatform/src/server.ts`).
   { path: 'organisations', label: 'Organisations', wildcard: true, bare: true, public: false },
   // One project and everything hanging off it — keys, webhooks, OAuth clients, usage, the
   // directory listing. Wildcard, because `/projects/<uuid>/keys` and its four siblings are
   // addresses a developer bookmarks. Behind the gate: every route under it is `project:read` or
-  // `project:write` (`devplatform/src/server.ts:604`).
+  // `project:write` (`devplatform/src/server.ts`).
   { path: 'projects', label: null, wildcard: true, bare: false, public: false },
   // ────────────────────────────────────────────────────────────────────────────────────────────
   // THE PUBLIC DIRECTORY, WHICH IS THE ONE PART OF THIS PRODUCT AIMED AT SOMEBODY WHO IS NOT A
   // DEVELOPER.
   //
   // `GET /v1/apps` filters to `status = 'listed'` inside its own query
-  // (`devplatform/src/applications.ts:323-326`), so nothing unreviewed can reach it by a caller
+  // (`devplatform/src/applications.ts`), so nothing unreviewed can reach it by a caller
   // forgetting a filter. Wildcard: `/apps/<slug>` is one listing.
   // ────────────────────────────────────────────────────────────────────────────────────────────
   { path: 'apps', label: 'Directory', wildcard: true, bare: true, public: true },

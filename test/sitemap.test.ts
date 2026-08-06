@@ -50,7 +50,7 @@ const nginx = readFileSync(new URL('../nginx.conf', import.meta.url), 'utf8')
  * Every address of this surface a crawler should be handed, DERIVED rather than restated.
  *
  * The `public` flag in `src/lib/routes.ts`, which is itself read off devplatform: `GET /v1/scopes`
- * (`devplatform/src/server.ts:744`) and `GET /v1/apps` (`:1297`) take no principal. `/organisations`
+ * (`devplatform/src/server.ts`) and `GET /v1/apps` take no principal. `/organisations`
  * and `/projects/<id>` are behind a session gate — a crawler reaching one is redirected to sign in,
  * so listing them would be an invitation to crawl a tree of sign-in bounces.
  *

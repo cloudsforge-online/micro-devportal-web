@@ -118,7 +118,7 @@ describe('the stylesheet names only tokens that exist', () => {
        * It read `['--cf-border', '--cf-critical', '--cf-warning', '--cf-font']`, and it was right
        * when it was written. @cloudsforge/ui 1.1 then added the measured severity trio —
        * `--cf-critical` `#d2543a` as the 3:1 fill step beside `--cf-critical-text` `#f86546` at
-       * 4.63:1 (`tokens.css:360-361`) — so this assertion has been RED on `main` ever since, for
+       * 4.63:1 (`tokens.css`) — so this assertion has been RED on `main` ever since, for
        * the reason the assertion beside it spells out in its own message: "now exists upstream;
        * this test is out of date". It was. Enforcing a stale list against a design system that has
        * moved is how a suite trains its readers to ignore it.

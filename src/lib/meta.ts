@@ -23,7 +23,7 @@
  * every gated address.
  *
  * The two public ones are public because the SERVICE made them public: `GET /v1/scopes`
- * (`devplatform/src/server.ts:744`), `GET /v1/apps` (`:1297`) and `GET /v1/apps/:slug` (`:1325`)
+ * (`devplatform/src/server.ts`), `GET /v1/apps` and `GET /v1/apps/:slug`
  * read no credential at all. `src/lib/routes.ts` carries the same distinction as `public`, and
  * `test/meta.test.ts` asserts the two agree — so a route that is gated and indexable, or public and
  * hidden, fails the build rather than being noticed by a crawler.

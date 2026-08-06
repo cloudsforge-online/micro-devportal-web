@@ -46,13 +46,13 @@
 #
 # Re-checked against micro-org rather than believed:
 #
-#   * the single checkout is fixed. web-ci.yml:88-115 checks the app out into `app/`, micro-ui into
+#   * the single checkout is fixed. web-ci.yml checks the app out into `app/`, micro-ui into
 #     `ui/` beside it, and installs THE SIBLING FIRST, because `link:` resolves to the sibling's own
 #     node_modules — the shape of the `check:` job below. micro-ui is public now, so even the
 #     `estate_token` fallback to `github.token` resolves.
-#   * the deep-route probe is fixed, and inverted. web-ci.yml:290-297 REQUIRES an unknown path to
+#   * the deep-route probe is fixed, and inverted. web-ci.yml REQUIRES an unknown path to
 #     answer 404 and names `try_files $uri /index.html` as the thing not to do; the 200 is now asked
-#     only of the optional `deep-link-path` input (:299-309), a route the app really has.
+#     only of the optional `deep-link-path` input, a route the app really has.
 #
 # So the two things that made a bespoke `check:` and `image:` unavoidable are gone. This file is
 # still not deleted, because what remains is not a workaround: `rules:` (line 471 below) was
@@ -628,7 +628,7 @@ jobs:
       - name: No act-as-anyone parameter
         # A developer acts as themselves. devplatform derives the acting principal from the token
         # and reads a project's organisation from the ROW rather than from the request
-        # (devplatform/src/server.ts:630-635), so there is no parameter to expose — and a control
+        # (devplatform/src/server.ts), so there is no parameter to expose — and a control
         # shaped like one in a customer console is how an operator primitive ends up in a product.
         run: |
           set -uo pipefail
@@ -668,7 +668,7 @@ jobs:
           # `grep -q … < <(strip …)` rather than `strip … | grep -q …`: grep -q exits on its first
           # match by design, and under `pipefail` the producer's EPIPE (141) became the pipeline's
           # status. That failed in the DANGEROUS direction — the `||` below fired and declared the
-          # refusal missing while it was present at src/lib/devplatform.ts:865. Measured here: the
+          # refusal missing while it was present at src/lib/devplatform.ts. Measured here: the
           # piped form said MISSING on 10 of 20 runs; this form is correct on 20 of 20. Process
           # substitution keeps grep's own exit status, so the rule still means exactly what it did.
           grep -q 'quota_raise_refused' < <(strip src/lib/devplatform.ts) || {
@@ -683,13 +683,13 @@ jobs:
 
       - name: A path id is never sent malformed
         # A malformed :id reaches a uuid column on every route that predates requireUuid and comes
-        # back as 500 internal rather than 400 — devplatform/src/server.ts:1673-1692 says so, and
+        # back as 500 internal rather than 400 — devplatform/src/server.ts says so, and
         # declines to change the shipped status codes in one commit. It deliberately writes down NO
         # count: this comment used to say "eleven", micro-devplatform@aadf5a6 deleted that number
         # because three readers had counted eleven, nineteen and twenty-five, and the source and
         # README were corrected while this copy was not. The command is the honest form of it:
         #
-        #     grep -oE "'/v1/[^']*:id[^']*'" src/server.ts | sort -u | wc -l   # 19 at aadf5a6
+        #     grep -oE "'/v1/[^']*:id[^']*'" devplatform/src/server.ts | sort -u | wc -l   # 19 at aadf5a6
         #
         # This console's addresses ARE those ids, so a typo must not read as an outage. Asserted
         # here as well as in the suite, because deleting the test would otherwise delete the rule.
@@ -719,7 +719,7 @@ jobs:
         #
         # `critical` LEFT THIS LIST, having been re-read rather than believed. It was invented when
         # the palette had no such token; @cloudsforge/ui 1.1 declares `--cf-critical: #d2543a`
-        # (`ui/packages/ui/src/tokens.css:360`) along with `--cf-critical-text` (:361). The other
+        # (`ui/packages/ui/src/tokens.css`) along with `--cf-critical-text`. The other
         # nine names are still absent from tokens.css and still refused. Dropping it is not a
         # weakening: the rule that made `--cf-critical` dangerous is now checked directly, below.
         run: |
@@ -869,12 +869,12 @@ jobs:
   # already drifted:
   #
   #   generator  `cfctl release` pins one image per deployable, the name from
-  #              org/tools/registry.ts:367-369 (`ghcr.io/<org>/<repo.repo>`, which is why the package
+  #              org/tools/registry.ts (`ghcr.io/<org>/<repo.repo>`, which is why the package
   #              is micro-<app> and not <app>) and the tag from that repository's package.json
-  #              version, org/tools/cfctl.ts:962-968.
+  #              version, org/tools/cfctl.ts.
   #   verifier   `cfctl release --verify` runs `docker manifest inspect` on EVERY entry and returns
-  #              non-zero if one cannot be pulled, org/tools/cfctl.ts:997-1038.
-  #   deployer   deploy/scripts/release-deploy.sh:99-124 refuses to change anything while any image
+  #              non-zero if one cannot be pulled, org/tools/cfctl.ts.
+  #   deployer   deploy/scripts/release-deploy.sh refuses to change anything while any image
   #              is missing.
   #
   # A frontend with no producer was therefore a manifest entry that could never verify.

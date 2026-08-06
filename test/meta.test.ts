@@ -27,8 +27,8 @@
  * index or — if the gate ever slips — a customer's project names.
  *
  * `src/lib/routes.ts` already declares which is which, in `public`, and declares it by reading the
- * SERVICE: `GET /v1/scopes` (`devplatform/src/server.ts:744`), `GET /v1/apps` (`:1297`) and
- * `GET /v1/apps/:slug` (`:1325`) take no principal and look at no `authorization` header. Those
+ * SERVICE: `GET /v1/scopes` (`devplatform/src/server.ts`), `GET /v1/apps` and
+ * `GET /v1/apps/:slug` take no principal and look at no `authorization` header. Those
  * three citations were re-read against the file for this test rather than carried over. So the
  * assertion below is: for every route, `public` and the robots directive agree. A route that is
  * gated and indexable, or public and hidden, fails here rather than being noticed by a crawler.

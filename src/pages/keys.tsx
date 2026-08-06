@@ -4,12 +4,12 @@
  * ══════════════════════════════════════════════════════════════════════════════════════════════
  * THIS IS THE SCREEN THE WHOLE PRODUCT IS FOR, AND ITS ONE IRREVERSIBLE MOMENT.
  *
- * `POST /v1/projects/:id/keys` (`devplatform/src/server.ts:912`) is the only route in the service
+ * `POST /v1/projects/:id/keys` (`devplatform/src/server.ts`) is the only route in the service
  * that returns a usable credential. The response carries `secretKey` once, with the service's own
- * sentence in `note` (`devplatform/src/server.ts:961`), and **there is no route and no column that
+ * sentence in `note` (`devplatform/src/server.ts`), and **there is no route and no column that
  * could produce it again** — `api_keys` holds a scrypt hash and nothing else, and
  * `api_keys_slow_kdf_only` refuses any row that says otherwise
- * (`devplatform/src/migrations.ts:204`).
+ * (`devplatform/src/migrations.ts`).
  *
  * So the warning is on the FORM, before the request is sent, in the service's own words; and the
  * secret itself appears in `<ShownOnce>`, which is modal, traps focus, arms `beforeunload`, and
@@ -22,7 +22,7 @@
  *
  * The `Idempotency-Key` is not optional politeness here. Without it a double-clicked "Issue key"
  * mints two credentials "and the second is one the developer never sees and therefore never revokes
- * — a live key with no owner" (`devplatform/src/server.ts:903-905`).
+ * — a live key with no owner" (`devplatform/src/server.ts`).
  */
 import { useState } from 'react'
 import { useParams } from 'react-router-dom'
@@ -144,7 +144,7 @@ export function KeysPage() {
  *
  * **An empty scope selection is allowed and is not a mistake.** `grantsScope([], anything)` is false
  * and creating such a key is permitted "precisely so that it is provable: a credential can exist and
- * be completely inert" (`devplatform/src/scopes.ts:7-11`). The form says that rather than refusing.
+ * be completely inert" (`devplatform/src/scopes.ts`). The form says that rather than refusing.
  */
 function IssueKey({ projectId, onIssued }: { projectId: string; onIssued: () => void }) {
   const vocabulary = useResource(
@@ -191,7 +191,7 @@ function IssueKey({ projectId, onIssued }: { projectId: string; onIssued: () => 
         A warning that first appears alongside the secret is a warning read after the decision it
         was meant to inform. This is the service's own sentence, verbatim — `SHOWN_ONCE` in
         src/lib/format.ts, which `test/devplatform.test.ts` asserts is still identical to the string
-        `devplatform/src/server.ts:961` puts on the wire.
+        `devplatform/src/server.ts` puts on the wire.
       */}
       <Note tone="warn">{SHOWN_ONCE} Have somewhere to put it before you press the button.</Note>
 
@@ -276,7 +276,7 @@ function IssueKey({ projectId, onIssued }: { projectId: string; onIssued: () => 
       {/*
         Three outcomes, three renderings.
 
-        A replay is a SUCCESS with no secret in it (`devplatform/src/server.ts:951-958`), and it must
+        A replay is a SUCCESS with no secret in it (`devplatform/src/server.ts`), and it must
         not be drawn as either a failure or a fresh credential — a developer who read it as a
         failure would issue a second key nobody needs.
       */}
@@ -310,7 +310,7 @@ function IssueKey({ projectId, onIssued }: { projectId: string; onIssued: () => 
 /**
  * Revoke one key.
  *
- * `DELETE /v1/keys/:id` (`devplatform/src/server.ts:990`) is idempotent by claim, not merely by
+ * `DELETE /v1/keys/:id` (`devplatform/src/server.ts`) is idempotent by claim, not merely by
  * verb: `revokeApiKey` updates `where revoked_at is null`, so a second call preserves the first
  * call's time and reason and emits no second event. The answer says which happened, and this
  * control renders the difference rather than reporting both as "done".

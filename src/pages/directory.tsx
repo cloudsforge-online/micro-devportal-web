@@ -2,12 +2,12 @@
  * The public application directory, and one listing.
  *
  * Both routes behind this screen are PUBLIC and read no credential: `GET /v1/apps`
- * (`devplatform/src/server.ts:1297`) and `GET /v1/apps/:slug` (`devplatform/src/server.ts:1325`).
+ * (`devplatform/src/server.ts`) and `GET /v1/apps/:slug` (`devplatform/src/server.ts`).
  * They are outside the session gate for that reason — the directory is the one part of this product
  * aimed at somebody who is not a developer.
  *
  * **Only `listed` applications can appear**, and the filter is inside the service's own query
- * rather than applied by a caller (`devplatform/src/applications.ts:323-326`): "a filter the caller
+ * rather than applied by a caller (`devplatform/src/applications.ts`): "a filter the caller
  * has to remember is a filter that will one day be forgotten, and the consequence here is a draft
  * listing … served to the public."
  *
@@ -15,7 +15,7 @@
  * the two it is. It used to say something stronger — that nothing in the estate could move a
  * listing from `in_review` to `listed`, so the directory could never fill. That was true and was
  * reported; `PUT /v1/projects/:id/application/status`
- * (`devplatform/src/server.ts:1378`) closed it, so the sentence is gone rather than softened.
+ * (`devplatform/src/server.ts`) closed it, so the sentence is gone rather than softened.
  */
 import { Link, useParams } from 'react-router-dom'
 import { Empty, Failed, Loading, Note } from '../components/states.tsx'
@@ -75,7 +75,7 @@ export function DirectoryPage() {
  *
  * A **404 here means "there is no LISTED application at that slug"** and never "you may not see
  * it": the status filter is in `findListedApplication`'s own query
- * (`devplatform/src/applications.ts:303-309`), so a draft belonging to the reader's own project
+ * (`devplatform/src/applications.ts`), so a draft belonging to the reader's own project
  * answers the same 404 as a slug that was never used. Rendering it as a permission problem would
  * send somebody to ask for access they already have.
  */

@@ -5,24 +5,25 @@
  * is the whole problem: a test that asserts "the client calls /v1/keys" is a test that the client
  * agrees with itself. So this file does not assert paths in the abstract — it reads
  * `devplatform/src/server.ts` from the sibling checkout and requires that each path and method this
- * bundle calls is REGISTERED there, at the line the citation names.
+ * bundle calls is REGISTERED there, found by searching for its `define(`.
  *
  * ══════════════════════════════════════════════════════════════════════════════════════════════
  * ── FOUR CHECKS, AND THREE OF THEM EXIST BECAUSE A SIBLING'S VERSION HAS ALREADY BEEN FOOLED ──
  *
- * **1. Citations.** Each entry in `SURFACE` names a line; that line must contain the `define(` that
- * registers exactly that method and path.
+ * **1. Citations.** Each entry in `SURFACE` names a method and a path, and the service must
+ * register exactly that pair. The entry used to name a LINE as well — see the fourth check, which
+ * is the record of why it does not any more.
  *
  * **2. SHAPES, never prefixes.** `micro-market`'s guard matched `path.startsWith(servedPrefix)` and
  * would have passed two genuinely dead paths because they BEGAN with a served prefix;
  * `micro-mint-web` then shipped exactly that defect. `matchesShape` below is the corrected form
- * from `market/src/indexerclient.test.ts:230-249`: same segment count, every segment agrees, and a
+ * from `market/src/indexerclient.test.ts`: same segment count, every segment agrees, and a
  * `${...}` is exactly one segment.
  *
  * **3. HOW each route authenticates, not whether — and this service is the reason.** `micro-worlds-web`
  * greps each handler body for `await authenticate(ctx, deps)` and asserts a boolean. There is no
  * such literal inside ANY of devplatform's 35 `/v1` handlers: the call appears three times in the
- * file and all three are inside helpers (`server.ts:567`, `:574`, `:610`). Run here, the boolean
+ * file and all three are inside helpers (`server.ts`). Run here, the boolean
  * check would report all thirty-five routes public, including the twenty-nine that authenticate —
  * and a client built on that answer would send no bearer to the route that mints credentials. So
  * every route carries a MECHANISM and the handler body is matched against that mechanism's pattern.
@@ -36,12 +37,19 @@
  * else's handler. The one named `project:write` was reading `POST /v1/webhook-endpoints/:id/disable`,
  * which really is `project:write` — a green test, about the wrong function.
  *
- * So the line a body is read from is now FOUND, not declared. `cite()` from `@cloudsforge/ui/cite`
+ * So the line a body is read from is FOUND, not declared. `cite()` from `@cloudsforge/ui/cite`
  * resolves `define('METHOD', '/path',` and refuses to answer unless EXACTLY ONE line matches, and
- * every body check starts from what it found. The `line:` in the tables below is no longer an input
- * to any behaviour check: it is a CLAIM about where the route sits, asserted against the resolved
- * line and reported as a move rather than as ":880 is: some other code". The handler-body extractor
- * still walks forward to the next `define(` rather than to a number.
+ * every body check starts from what it found. The handler-body extractor walks forward to the next
+ * `define(` rather than to a number.
+ *
+ * AND THE TABLES NO LONGER CARRY A `line:` AT ALL. It survived one revision as a CLAIM — not read
+ * by any check, only asserted against the line `cite()` found — and that was still the defect,
+ * because a claim that fails is a red build. `micro-devplatform` moved its route table by 32 lines
+ * on 3 August and by 34 before that, without one route changing its method, path, authority or
+ * idempotency; both times this repository went red for an edit made in another one, and nothing
+ * runs this suite when that repository is edited, so both times it surfaced during a release. What
+ * the table records instead is the COMMIT it was last read against, which is a fact about a
+ * reading rather than a promise about a file somebody else owns.
  * ══════════════════════════════════════════════════════════════════════════════════════════════
  *
  * ── What happens without the sibling ──────────────────────────────────────────────────────────
@@ -83,7 +91,7 @@ const server = CANDIDATES.find((p) => existsSync(p))
  *
  * `operator`      The service had no notion of one. It has now: a SERVICE token carrying the exact
  *                 scope `devplatform:admin`, or a user token with the platform role `admin`
- *                 (`devplatform/src/server.ts:554-558`). An API key can never be one —
+ *                 (`devplatform/src/server.ts`). An API key can never be one —
  *                 `devplatform:admin` is deliberately absent from `scopes.ts`, so `validateScopes`
  *                 refuses it at issuance and no row can hold it. A browser cannot become an
  *                 operator by holding a key.
@@ -136,62 +144,55 @@ const ANY_MECHANISM = Object.values(MECHANISM)
 interface Route {
   readonly method: string
   readonly path: string
-  /**
-   * Where the service registered it when this table was last read — a CLAIM, never an input.
-   *
-   * Nothing below reads a handler at this number. It is asserted against the line `cite()` finds,
-   * so a service that moves its route table produces one failure per route that says what moved
-   * and where to, instead of thirty-one failures about handlers nobody meant to grade. It stays in
-   * the table because a repository that only says "wherever it is now" has stopped recording when
-   * it last looked.
-   */
-  readonly line: number
   readonly auth: Auth
   /** True when the handler is wrapped in `withIdempotentRoute`, so the header is required. */
   readonly idempotent: boolean
 }
 
 /**
- * The surface this bundle CALLS, with the line each was read from.
+ * The surface this bundle CALLS.
  *
- * Written down here as DATA so the checks below can be mechanical. If one of these citations is
+ * Written down here as DATA so the checks below can be mechanical. If one of these entries is
  * wrong, the test fails and names it — which is the property a comment does not have.
  *
- * Read against `micro-devplatform@974e1ed`. The previous reading was `@e13c154`; three commits on
- * 3 August inserted 32 lines above the route table and two more inside it, and every number here
- * moved by 32 or 34 without one route changing its method, path, authority or idempotency.
+ * Last read against `micro-devplatform@974e1ed`, and that COMMIT is what this table records rather
+ * than a set of line numbers. The reading before it was `@e13c154`: three commits on 3 August
+ * inserted 32 lines above the route table and two more inside it, and every line number here moved
+ * by 32 or 34 without one route changing its method, path, authority or idempotency. A commit is a
+ * fact about when somebody last looked; a line was a promise about a file this repository does not
+ * own, and it was broken twice in a week.
  */
 const SURFACE: readonly Route[] = [
-  { method: 'GET', path: '/v1/scopes', line: 744, auth: 'none', idempotent: false },
-  { method: 'POST', path: '/v1/organisations', line: 777, auth: 'user+admin', idempotent: false },
-  { method: 'GET', path: '/v1/organisations', line: 816, auth: 'user+member', idempotent: false },
-  { method: 'GET', path: '/v1/organisations/:id', line: 831, auth: 'org:read', idempotent: false },
-  { method: 'GET', path: '/v1/organisations/:id/projects', line: 839, auth: 'org:read', idempotent: false },
-  { method: 'POST', path: '/v1/projects', line: 847, auth: 'org:write', idempotent: true },
-  { method: 'GET', path: '/v1/projects/:id', line: 870, auth: 'project:read', idempotent: false },
-  { method: 'POST', path: '/v1/projects/:id/service-accounts', line: 882, auth: 'project:write', idempotent: false },
-  { method: 'GET', path: '/v1/projects/:id/service-accounts', line: 893, auth: 'project:read', idempotent: false },
-  { method: 'POST', path: '/v1/projects/:id/keys', line: 912, auth: 'project:write', idempotent: true },
-  { method: 'GET', path: '/v1/projects/:id/keys', line: 968, auth: 'project:read', idempotent: false },
-  { method: 'DELETE', path: '/v1/keys/:id', line: 990, auth: 'project:write', idempotent: false },
-  { method: 'PUT', path: '/v1/projects/:id/quotas', line: 1045, auth: 'operator-or-lower', idempotent: false },
-  { method: 'GET', path: '/v1/projects/:id/quotas', line: 1097, auth: 'project:read', idempotent: false },
-  { method: 'GET', path: '/v1/projects/:id/usage', line: 1107, auth: 'project:read', idempotent: false },
-  { method: 'POST', path: '/v1/projects/:id/webhook-endpoints', line: 1117, auth: 'project:write', idempotent: true },
-  { method: 'GET', path: '/v1/projects/:id/webhook-endpoints', line: 1148, auth: 'project:read', idempotent: false },
-  { method: 'POST', path: '/v1/webhook-endpoints/:id/rotate-secret', line: 1157, auth: 'project:write', idempotent: true },
-  { method: 'POST', path: '/v1/webhook-endpoints/:id/disable', line: 1188, auth: 'project:write', idempotent: false },
-  { method: 'POST', path: '/v1/webhook-endpoints/:id/enable', line: 1212, auth: 'project:write', idempotent: false },
-  { method: 'DELETE', path: '/v1/webhook-endpoints/:id', line: 1222, auth: 'project:write', idempotent: false },
-  { method: 'GET', path: '/v1/webhook-endpoints/:id/deliveries', line: 1231, auth: 'project:read', idempotent: false },
-  { method: 'POST', path: '/v1/projects/:id/oauth-clients', line: 1241, auth: 'project:write', idempotent: true },
-  { method: 'GET', path: '/v1/projects/:id/oauth-clients', line: 1278, auth: 'project:read', idempotent: false },
-  { method: 'DELETE', path: '/v1/oauth-clients/:id', line: 1283, auth: 'project:write', idempotent: false },
-  { method: 'GET', path: '/v1/apps', line: 1297, auth: 'none', idempotent: false },
-  { method: 'GET', path: '/v1/apps/:slug', line: 1325, auth: 'none', idempotent: false },
-  { method: 'PUT', path: '/v1/projects/:id/application', line: 1332, auth: 'project:write', idempotent: false },
-  { method: 'GET', path: '/v1/projects/:id/application', line: 1346, auth: 'project:read', idempotent: false },
-  { method: 'POST', path: '/v1/projects/:id/application/submit', line: 1354, auth: 'project:write', idempotent: false },
+  { method: 'GET', path: '/v1/scopes', auth: 'none', idempotent: false },
+  { method: 'POST', path: '/v1/organisations', auth: 'user+admin', idempotent: false },
+  { method: 'GET', path: '/v1/organisations', auth: 'user+member', idempotent: false },
+  { method: 'GET', path: '/v1/organisations/:id', auth: 'org:read', idempotent: false },
+  { method: 'GET', path: '/v1/organisations/:id/projects', auth: 'org:read', idempotent: false },
+  { method: 'POST', path: '/v1/projects', auth: 'org:write', idempotent: true },
+  { method: 'GET', path: '/v1/projects/:id', auth: 'project:read', idempotent: false },
+  { method: 'POST', path: '/v1/projects/:id/service-accounts', auth: 'project:write', idempotent: false },
+  { method: 'GET', path: '/v1/projects/:id/service-accounts', auth: 'project:read', idempotent: false },
+  { method: 'POST', path: '/v1/projects/:id/keys', auth: 'project:write', idempotent: true },
+  { method: 'GET', path: '/v1/projects/:id/keys', auth: 'project:read', idempotent: false },
+  { method: 'DELETE', path: '/v1/keys/:id', auth: 'project:write', idempotent: false },
+  { method: 'PUT', path: '/v1/projects/:id/quotas', auth: 'operator-or-lower', idempotent: false },
+  { method: 'GET', path: '/v1/projects/:id/quotas', auth: 'project:read', idempotent: false },
+  { method: 'GET', path: '/v1/projects/:id/usage', auth: 'project:read', idempotent: false },
+  { method: 'POST', path: '/v1/projects/:id/webhook-endpoints', auth: 'project:write', idempotent: true },
+  { method: 'GET', path: '/v1/projects/:id/webhook-endpoints', auth: 'project:read', idempotent: false },
+  { method: 'POST', path: '/v1/webhook-endpoints/:id/rotate-secret', auth: 'project:write', idempotent: true },
+  { method: 'POST', path: '/v1/webhook-endpoints/:id/disable', auth: 'project:write', idempotent: false },
+  { method: 'POST', path: '/v1/webhook-endpoints/:id/enable', auth: 'project:write', idempotent: false },
+  { method: 'DELETE', path: '/v1/webhook-endpoints/:id', auth: 'project:write', idempotent: false },
+  { method: 'GET', path: '/v1/webhook-endpoints/:id/deliveries', auth: 'project:read', idempotent: false },
+  { method: 'POST', path: '/v1/projects/:id/oauth-clients', auth: 'project:write', idempotent: true },
+  { method: 'GET', path: '/v1/projects/:id/oauth-clients', auth: 'project:read', idempotent: false },
+  { method: 'DELETE', path: '/v1/oauth-clients/:id', auth: 'project:write', idempotent: false },
+  { method: 'GET', path: '/v1/apps', auth: 'none', idempotent: false },
+  { method: 'GET', path: '/v1/apps/:slug', auth: 'none', idempotent: false },
+  { method: 'PUT', path: '/v1/projects/:id/application', auth: 'project:write', idempotent: false },
+  { method: 'GET', path: '/v1/projects/:id/application', auth: 'project:read', idempotent: false },
+  { method: 'POST', path: '/v1/projects/:id/application/submit', auth: 'project:write', idempotent: false },
 ]
 
 /**
@@ -203,11 +204,11 @@ const SURFACE: readonly Route[] = [
  * keyed by these citations, and the last test in the first block requires each to be there.
  */
 const DECLINED: readonly Route[] = [
-  { method: 'GET', path: '/v1/keys/self', line: 764, auth: 'key', idempotent: false },
-  { method: 'GET', path: '/v1/keys/:id', line: 975, auth: 'project:read', idempotent: false },
-  { method: 'GET', path: '/v1/apps/pending', line: 1317, auth: 'operator', idempotent: false },
-  { method: 'PUT', path: '/v1/projects/:id/application/status', line: 1378, auth: 'operator', idempotent: false },
-  { method: 'POST', path: '/v1/events', line: 1505, auth: 'hmac', idempotent: false },
+  { method: 'GET', path: '/v1/keys/self', auth: 'key', idempotent: false },
+  { method: 'GET', path: '/v1/keys/:id', auth: 'project:read', idempotent: false },
+  { method: 'GET', path: '/v1/apps/pending', auth: 'operator', idempotent: false },
+  { method: 'PUT', path: '/v1/projects/:id/application/status', auth: 'operator', idempotent: false },
+  { method: 'POST', path: '/v1/events', auth: 'hmac', idempotent: false },
 ]
 
 const ALL: readonly Route[] = [...SURFACE, ...DECLINED]
@@ -221,7 +222,7 @@ const format = readFileSync(here('src/lib/format.ts'), 'utf8')
 /**
  * Does a requested path match a served pattern? Same segment count, and every segment agrees.
  *
- * **Segment counts, never prefixes.** Copied from `market/src/indexerclient.test.ts:230-249`, which
+ * **Segment counts, never prefixes.** Copied from `market/src/indexerclient.test.ts`, which
  * is itself the corrected form of a guard that matched by prefix and would have passed a dead path
  * because it began with a served one. A count is not a shape, and a prefix is not a shape.
  */
@@ -286,7 +287,7 @@ export function requestedPaths(source: string): readonly string[] {
  * The method matters: `GET /v1/projects/:id/keys` is called and there is no `POST` at that shape,
  * while `POST /v1/projects/:id/keys` is a different route with a different authority. A checker
  * that compared paths alone would confuse the two. `api()` defaults to GET
- * (`src/lib/api.ts:272`), so a call site with no `method:` is a GET, and the options object follows
+ * (`src/lib/api.ts`), so a call site with no `method:` is a GET, and the options object follows
  * the path in the same call — so the method is looked for between this path literal and the next.
  */
 function requestedCalls(source: string): ReadonlyArray<{ method: string; path: string; block: string }> {
@@ -360,13 +361,26 @@ describe('the client calls only routes it has cited', () => {
     }
   })
 
-  it('cites a line for every route, called or declined, in the client', () => {
+  it('names every route it calls or declines in the client, and says which file it read', () => {
+    // This asserted that the client's header carried the LINE from the table beside it — three
+    // copies of one number, of which the copies are the ones that go stale. What is worth having
+    // is that the client's own tables, which is where the REASON each route is called or declined
+    // is written, still have a row per route: a decision keyed to nothing is a decision nobody can
+    // check, and that is the failure the citation was standing in for.
     for (const route of ALL) {
-      assert.ok(
-        client.includes(`devplatform/src/server.ts:${route.line}`),
-        `${route.method} ${route.path} has no citation in src/lib/devplatform.ts`,
+      // The path has no regex metacharacter in it — `:id` and `/` are literal — so it goes in as it is.
+      const row = new RegExp(`\`${route.method}\`\\s*\\|\\s*\`${route.path}\``)
+      assert.match(
+        client,
+        row,
+        `${route.method} ${route.path} has no row in the tables in src/lib/devplatform.ts`,
       )
     }
+    // And that it says where it read the surface FROM. The file, not a position in it.
+    assert.ok(
+      client.includes('devplatform/src/server.ts'),
+      'src/lib/devplatform.ts no longer says which service source its surface was read from',
+    )
   })
 
   it('every call site uses a method the surface table cites for that shape', () => {
@@ -582,18 +596,13 @@ describe('the cited lines are the lines that register the routes', () => {
   })
 
   for (const route of ALL) {
-    it(`${route.method} ${route.path} is registered at devplatform/src/server.ts:${route.line}`, () => {
-      // The citation is asserted against the line the route was FOUND at, so the message names the
-      // move. The version this replaces printed ":880 is: <whatever now sits there>", which sends a
-      // reader to a handler that has nothing to do with the route in the test's own name.
-      const found = pin(route)
-      assert.equal(
-        found.line,
-        route.line,
-        `${route.method} ${route.path} moved: devplatform registers it at ` +
-          `devplatform/src/server.ts:${found.line}, and this repository still cites :${route.line}. ` +
-          'Update the table above and the matching citation in src/lib/devplatform.ts.',
-      )
+    it(`${route.method} ${route.path} is registered in devplatform/src/server.ts`, () => {
+      // `pin()` THROWS unless exactly one line registers this exact method and path, so a route the
+      // service deletes, renames or registers twice fails here and names the anchor it looked for.
+      // What it no longer does is compare the line it found against a line written down above:
+      // that comparison was the whole of this repository's exposure to somebody else's edits, and
+      // it went red twice in a week for route tables that had only MOVED.
+      assert.ok(pin(route).line > 0, `${route.method} ${route.path} is not registered by the service`)
     })
   }
 

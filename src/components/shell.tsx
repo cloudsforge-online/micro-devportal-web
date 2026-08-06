@@ -3,17 +3,17 @@
  *
  * The bar is `CloudsForgeBar` from @cloudsforge/ui and is never reimplemented. It is passed
  * `PRODUCT` — `developers` — which the registry marks `inSwitcher: false`
- * (`ui/packages/ui/src/surfaces.ts:394`), so the switcher renders the six products and Forge Hub
+ * (`ui/packages/ui/src/surfaces.ts`), so the switcher renders the six products and Forge Hub
  * and marks none of them current. That is correct rather than a gap: this surface is reached from
- * the footer, not from the switcher (`ui/packages/ui/src/surfaces.ts:382-383`), and putting a
+ * the footer, not from the switcher (`ui/packages/ui/src/surfaces.ts`), and putting a
  * developer console beside the products would say it is one.
  *
  * There is no brand mark in the bar for this surface, and that is also a registry fact rather than
- * an omission: `developers` carries `markId: null` (`ui/packages/ui/src/surfaces.ts:392`) and
- * `hasMark('developers')` is therefore false (`ui/packages/ui/src/index.tsx:449-451`). `micro-brand`
+ * an omission: `developers` carries `markId: null` (`ui/packages/ui/src/surfaces.ts`) and
+ * `hasMark('developers')` is therefore false (`ui/packages/ui/src/index.tsx`). `micro-brand`
  * DOES hold `assets/developers/mark-1024x1024.png` and a wordmark — the entitled set is "mark,
- * favicon, wordmark, og", seven files, with no social banner (`brand/plan.ts:234-243`,
- * `brand/README.md:41`) — so the artwork exists and the design system has no SVG drawing for it.
+ * favicon, wordmark, og", seven files, with no social banner (`brand/plan.ts`,
+ * `brand/README.md`) — so the artwork exists and the design system has no SVG drawing for it.
  * The favicons and the OG card in `public/` come from that set. Reported to micro-ui; not papered
  * over here with a locally drawn mark, which would be this repository inventing brand.
  */
@@ -77,7 +77,7 @@ export function AppShell({ unregistered = false }: { unregistered?: boolean }) {
           serving from anywhere. But louder here than on a product page, and for a reason.
 
           `cloudsforgeHosts()` derives the apex by stripping a KNOWN subdomain
-          (`ui/packages/ui/src/index.tsx:155-158`), so an address the registry does not know makes
+          (`ui/packages/ui/src/index.tsx`), so an address the registry does not know makes
           every estate URL resolve one level too deep — including this app's own API base and the
           account portal it would send a bearer token through. On a catalogue that is a broken page;
           here it is a credential console pointed somewhere unintended.

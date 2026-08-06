@@ -23,7 +23,7 @@
  *
  * ── The trap this file is written around ──────────────────────────────────────────────────────
  *
- * `analyticsAllowedHere()` (`ui/packages/ui/src/consent.ts:179`) returns FALSE for `localhost`,
+ * `analyticsAllowedHere()` (`ui/packages/ui/src/consent.ts`) returns FALSE for `localhost`,
  * `127.0.0.1`, `::1`, `*.local` and `*.localtest.me`, so `CookieBanner` renders NOTHING there.
  * "Zero cookies, no banner, no script" is therefore TRUE ON LOCALHOST FOR THE WRONG REASON, and a
  * scenario mounted at the harness's default local URL would assert nothing at all. Every scenario
