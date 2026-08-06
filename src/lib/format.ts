@@ -10,7 +10,7 @@
 /**
  * THE SENTENCE. It is the service's own, verbatim.
  *
- * `devplatform/src/server.ts:961` attaches exactly this string as `note` on the response that mints
+ * `devplatform/src/server.ts` attaches exactly this string as `note` on the response that mints
  * a key. It is duplicated here so a screen can say it BEFORE the request is sent — a warning that
  * only appears after the secret does is a warning nobody read in time — and
  * `test/devplatform.test.ts` asserts the two strings are still identical, which is what stops this
@@ -22,10 +22,10 @@ export const SHOWN_ONCE =
 /**
  * What a webhook signing secret is, which is NOT the same claim.
  *
- * `webhook_secrets` stores plaintext, and `devplatform/src/migrations.ts:59-66` says why in the
+ * `webhook_secrets` stores plaintext, and `devplatform/src/migrations.ts` says why in the
  * schema itself: "HMAC is not a one-way function of an input we do not have: signing a delivery
  * requires the secret itself." It is still shown once — no route returns it afterwards
- * (`devplatform/src/webhooks.ts:148`) — but saying it is hashed would be false, and this product
+ * (`devplatform/src/webhooks.ts`) — but saying it is hashed would be false, and this product
  * does not get to be vague about which of its secrets are recoverable.
  */
 export const WEBHOOK_SECRET_NOTE =
@@ -49,7 +49,7 @@ export interface Tone {
  * and telling somebody their key expired when in fact a colleague revoked it sends them to fix the
  * wrong thing.
  *
- * `expiresAt` is nullable and a null means "never" (`devplatform/src/apikeys.ts:151`), not "unknown".
+ * `expiresAt` is nullable and a null means "never" (`devplatform/src/apikeys.ts`), not "unknown".
  */
 export function keyState(key: {
   revokedAt: string | null
@@ -88,9 +88,9 @@ export function keyState(key: {
  *
  * `abandoned` is the one worth being loud about. A delivery past its attempt ceiling is retained
  * rather than deleted "because the row is the only record that a customer was sent an event and
- * never took it" (`devplatform/src/server.ts:290-295`), so it will sit in this list for ever
+ * never took it" (`devplatform/src/server.ts`), so it will sit in this list for ever
  * looking like a pending one unless the screen distinguishes them. The ceiling is configurable
- * (`DEVPLATFORM_WEBHOOK_MAX_ATTEMPTS`, default 8 — `devplatform/src/env.ts:215`) and is NOT on the
+ * (`DEVPLATFORM_WEBHOOK_MAX_ATTEMPTS`, default 8 — `devplatform/src/env.ts`) and is NOT on the
  * wire, so this function takes it rather than assuming it.
  */
 export function deliveryState(
@@ -124,12 +124,12 @@ export function deliveryState(
 }
 
 /**
- * `devplatform/src/applications.ts:41-47`. **Five statuses, and the app must render all five.**
+ * `devplatform/src/applications.ts`. **Five statuses, and the app must render all five.**
  *
  * `rejected` arrived with the operator route and is deliberately NOT a synonym for `delisted`:
  * delisted was public and was taken down, rejected never went up. The wording matters more than
  * the badge — `submitForReview` accepts `rejected` as a source
- * (`devplatform/src/applications.ts:80-87`), so this is a state a developer can leave, and copy
+ * (`devplatform/src/applications.ts`), so this is a state a developer can leave, and copy
  * that read like a final refusal would stop somebody trying again when they are allowed to.
  */
 export function applicationState(status: string): Tone {
@@ -172,7 +172,7 @@ export function applicationState(status: string): Tone {
  *
  * There is no "over" state, and that is not an omission: `quota_windows_within_limit` makes
  * exceeding a quota a constraint violation rather than a state a row can be in
- * (`devplatform/src/migrations.ts:29-35`), so `used > limit` cannot be read from the service. A
+ * (`devplatform/src/migrations.ts`), so `used > limit` cannot be read from the service. A
  * screen with a bar for it would be drawing something that cannot happen.
  */
 export function quotaTone(used: number, limit: number): Tone {
@@ -222,7 +222,7 @@ export function percent(used: number, limit: number): string {
  * The prefix of a `cfk_…` display string, which is the part that is safe everywhere.
  *
  * `display` is `cfk_<environment>_<lookup>` and carries no secret at all — the schema constrains
- * it to exactly that shape (`devplatform/src/migrations.ts:199`). It is what a revocation is quoted
+ * it to exactly that shape (`devplatform/src/migrations.ts`). It is what a revocation is quoted
  * by and what appears in a log, so it is rendered in full rather than masked. Masking it would
  * suggest there is something in it to hide, and would make the one string a developer needs to
  * quote at support the one string they cannot read.

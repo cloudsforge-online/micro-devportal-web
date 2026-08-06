@@ -7,8 +7,8 @@
  * comment.
  *
  * The second thing under test is the dev-port disagreement, asserted as a FACT rather than fixed
- * with a literal: the registry gives `developers` devPort 3012 (`ui/packages/ui/src/surfaces.ts:389`)
- * and `micro-devplatform` binds 4000 (`devplatform/src/env.ts:197`, `devplatform/.env.example:27`).
+ * with a literal: the registry gives `developers` devPort 3012 (`ui/packages/ui/src/surfaces.ts`)
+ * and `micro-devplatform` binds 4000 (`devplatform/src/env.ts`, `devplatform/.env.example:27`).
  * See the header of src/lib/hosts.ts.
  */
 import assert from 'node:assert/strict'
@@ -189,7 +189,7 @@ describe('the placement warning', () => {
   })
 
   it('flags the host the gateway’s CORS list names, which the registry does not define', () => {
-    // `deploy/gateway/dynamic/policy.yml:53` allowlists https://devportal.cloudsforge.online. The
+    // `deploy/gateway/dynamic/policy.yml` allowlists https://devportal.cloudsforge.online. The
     // registry's subdomain for this surface is `developers`, so that name is not a placement this
     // bundle recognises — and a page served from it would resolve every CloudsForge URL one level
     // too deep. Reported to micro-deploy; asserted here so the finding has a mechanism.

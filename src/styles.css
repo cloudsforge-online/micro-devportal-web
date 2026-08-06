@@ -796,7 +796,7 @@ body {
  * `.cf-btn` is the design system's. These modifiers are this app's, because ui.css ships
  * `.cf-btn` and `.cf-btn--ember` only — there is no `--primary` or `--danger` upstream, and using
  * a class the design system does not define would render an unstyled button rather than fail.
- * Checked against `ui/packages/ui/src/ui.css:116-168` rather than assumed.
+ * Checked against `ui/packages/ui/src/ui.css` rather than assumed.
  */
 .cf-btn--primary {
   border-color: var(--cf-accent);

@@ -8,11 +8,11 @@
  * ── Why `busy` is not merely cosmetic on THIS surface ─────────────────────────────────────────
  *
  * Four of this app's writes mint a credential, and each does it exactly once:
- * `POST /v1/projects/:id/keys` (`devplatform/src/server.ts:912`),
- * `POST /v1/projects/:id/webhook-endpoints` (`:1117`),
- * `POST /v1/webhook-endpoints/:id/rotate-secret` (`:1157`) and
- * `POST /v1/projects/:id/oauth-clients` (`:1241`). The service says what an unprotected double click
- * costs, in its own words at `devplatform/src/server.ts:903-905`: two credentials, "and the second
+ * `POST /v1/projects/:id/keys` (`devplatform/src/server.ts`),
+ * `POST /v1/projects/:id/webhook-endpoints`,
+ * `POST /v1/webhook-endpoints/:id/rotate-secret` and
+ * `POST /v1/projects/:id/oauth-clients`. The service says what an unprotected double click
+ * costs, in its own words at `devplatform/src/server.ts`: two credentials, "and the second
  * is one the developer never sees and therefore never revokes — a live key with no owner".
  *
  * The `Idempotency-Key` those five routes require is what makes a RETRY safe. It is not what makes
@@ -36,14 +36,14 @@
  *
  * `POST /v1/projects/:id/keys` attaches the secret to the FIRST response and to nothing else, on
  * purpose: "`minted` is null on a replay because the work did not run — which is precisely the
- * behaviour that makes a replay safe" (`devplatform/src/server.ts:951-958`). The duplicate BLOCKS
- * on the first transaction's uncommitted row (`devplatform/src/idempotency.ts:154-167`) and so
+ * behaviour that makes a replay safe" (`devplatform/src/server.ts`). The duplicate BLOCKS
+ * on the first transaction's uncommitted row (`devplatform/src/idempotency.ts`) and so
  * always resolves LAST — and last write wins. `KeyForm` calls `setIssued(result)` inside the work,
  * so the developer is left holding the REPLAY, whose `secretKey` is `null`.
  *
  * The outcome: the key was created, it is live, `<Replayed>` correctly says its secret "cannot be
  * shown again" — and the developer never saw it once. That is a live credential with no owner,
- * which is the exact artefact `devplatform/src/server.ts:903-905` says the wrapper exists to
+ * which is the exact artefact `devplatform/src/server.ts` says the wrapper exists to
  * prevent, arrived at from the other end and manufactured entirely by this client. The same holds
  * for the webhook secret, the rotation and the OAuth client secret.
  *
@@ -71,7 +71,7 @@ export function useMutation<A extends unknown[], T>(
 ): Mutation<A, T> {
   // Not `useState`: the whole point is a value written and read in the same tick.
   //
-  // Under `<StrictMode>` (src/main.tsx:29) React double-invokes the component function on mount,
+  // Under `<StrictMode>` (src/main.tsx) React double-invokes the component function on mount,
   // so this initialiser runs twice and one of the two refs is discarded. That is harmless — both
   // start `false`, and from the first commit onwards there is exactly one ref, which is the one
   // both clicks of a double click read. `test/double-submit.test.ts` proves every scenario in
@@ -131,7 +131,7 @@ export function useMutation<A extends unknown[], T>(
  *     in `src/lib/idempotency.ts`);
  *   * the attempt ends with the outcome KNOWN, success or refusal alike → drop it, so the next
  *     intent is a new one and an edited payload cannot collide with the old fingerprint
- *     (`devplatform/src/server.ts:446-448`).
+ *     (`devplatform/src/server.ts`).
  *
  * `reset()` drops the key too: it is what a screen calls when the user abandons the attempt.
  */

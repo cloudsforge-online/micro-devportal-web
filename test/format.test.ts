@@ -25,7 +25,7 @@ const NOW = new Date('2026-08-01T12:00:00.000Z')
 
 describe('the two sentences about secrets', () => {
   it('the API key one says scrypt and says it cannot be recovered', () => {
-    // Verbatim from `devplatform/src/server.ts:961`; `test/devplatform.test.ts` proves the two are
+    // Verbatim from `devplatform/src/server.ts`; `test/devplatform.test.ts` proves the two are
     // still identical against the real service.
     assert.match(SHOWN_ONCE, /only time this secret is shown/i)
     assert.match(SHOWN_ONCE, /scrypt/)
@@ -34,7 +34,7 @@ describe('the two sentences about secrets', () => {
 
   it('the webhook one does NOT claim to be hashed, because that secret is stored', () => {
     // `webhook_secrets` holds plaintext, because signing a delivery requires the secret itself
-    // (`devplatform/src/migrations.ts:59-66`). Saying it is hashed would be false, and this product
+    // (`devplatform/src/migrations.ts`). Saying it is hashed would be false, and this product
     // does not get to be vague about which of its secrets are recoverable.
     assert.doesNotMatch(WEBHOOK_SECRET_NOTE, /scrypt|hashed/i)
     assert.match(WEBHOOK_SECRET_NOTE, /only time this secret is shown/i)
@@ -203,7 +203,7 @@ describe('the small formatters', () => {
   })
 
   it('recognises the display string shape the schema constrains', () => {
-    // `api_keys_display_shape` — `devplatform/src/migrations.ts:199`.
+    // `api_keys_display_shape` — `devplatform/src/migrations.ts`.
     assert.equal(isDisplayString('cfk_live_abcdefghijklmnop'), true)
     assert.equal(isDisplayString('cfk_test_abcdefghijklmnop'), true)
     assert.equal(isDisplayString('cfk_prod_abcdefghijklmnop'), false)

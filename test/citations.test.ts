@@ -1,27 +1,35 @@
 /**
- * EVERY `path:line` IN THIS REPOSITORY NAMES A LINE THAT EXISTS.
+ * EVERY CITATION IN THIS REPOSITORY NAMES A FILE THAT EXISTS, AND NONE OF THEM NAMES A LINE.
  *
- * `test/devplatform.test.ts` proves the ROUTE citations are exactly right — it reads the handler at
- * each cited line, matches its `define(...)`, and matches the body against the mechanism that
- * authenticates it. That is the strong check, and it covers thirty-one routes. This repository
- * carries several hundred other citations: into `devplatform/src/apikeys.ts`,
+ * `test/devplatform.test.ts` proves the ROUTE citations are exactly right — it FINDS each route's
+ * `define(...)`, reads the handler from there to the next one, and matches the body against the
+ * mechanism that authenticates it. That is the strong check, and it covers thirty-six routes. This
+ * repository carries several hundred other citations: into `devplatform/src/apikeys.ts`,
  * `devplatform/src/migrations.ts`, `devplatform/src/quotas.ts`, `deploy/gateway/dynamic/`,
  * `identity/src/organisations.ts`, `ui/packages/ui/src/surfaces.ts`, `brand/plan.ts` and more.
  *
- * A citation is the estate's unit of evidence and it decays silently. Three of the four sources
- * this programme inherited had drifted, and the README template says why it matters in one line: "A
- * claim nobody can check is worse than no claim, because it is believed."
+ * ── THIS FILE USED TO REQUIRE A LINE NUMBER. IT NOW FORBIDS ONE ───────────────────────────────
  *
- * This file is the cheap, total check under the strong, narrow one. It cannot tell whether a
- * citation means what the sentence around it says — no mechanical check can, and this repository
- * found two citations in `micro-worlds-web/src/lib/api.ts` that name lines which exist and no
- * longer say anything about the claim. What it catches is the failure that actually happens: a file
- * growing or shrinking under a line number nobody re-read. When a sibling is not checked out, the
- * citations into it are REPORTED as unchecked rather than passed over in silence, so a green run
- * never implies more than it measured.
+ * It existed to check that every `path:line` named a line inside the file, and it did that
+ * correctly. The trouble is what it was protecting: a line number names a position in a file a
+ * DIFFERENT repository owns and is free to edit. `micro-devplatform` inserted 32 lines above its
+ * route table on 3 August and 34 before that, and every citation here went wrong at once while
+ * nothing in this repository was — and nothing runs this suite when that service changes, so it
+ * surfaced during a release rather than at the edit. Seven of one day's nineteen CI failures across
+ * the estate were that single shape.
+ *
+ * So the rule is inverted rather than relaxed. What a citation is FOR is telling a reader where to
+ * look, and the file does that; where the exact place matters, the sentence names the symbol, which
+ * moves with the code. Forbidding the line here is what stops the practice returning by habit, and
+ * checking every cited FILE still catches the failure a line number never did — this sweep only
+ * ever looked at citations that carried one, so a citation naming a file that does not exist was
+ * invisible to it.
+ *
+ * When a sibling is not checked out, the citations into it are REPORTED as unchecked rather than
+ * passed over in silence, so a green run never implies more than it measured.
  */
 import assert from 'node:assert/strict'
-import { existsSync, readFileSync, readdirSync, statSync } from 'node:fs'
+import { existsSync, readFileSync, readdirSync } from 'node:fs'
 import { extname, join, relative } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { describe, it } from 'node:test'
@@ -37,7 +45,7 @@ const here = fileURLToPath(new URL('..', import.meta.url))
  *
  * The estate checks each `cloudsforge-<name>` out as `<name>`, while the prose cites some of them
  * by their GitHub name, `micro-<name>`. Both spellings resolve to the same directory; see
- * `org/tools/registry.ts:8-11`, which applies that substitution once for the whole programme.
+ * `org/tools/registry.ts`, which applies that substitution once for the whole programme.
  */
 const SIBLINGS: readonly string[] = [
   'devplatform',
@@ -51,6 +59,10 @@ const SIBLINGS: readonly string[] = [
   'org',
   'hub-api',
   'service-template',
+  // `src/styles.css` and `test/tokens.test.ts` cite micro-mint-web's stylesheet, which is the
+  // reference implementation of the token discipline this surface copies. Listed so those two
+  // citations are CHECKED rather than resolved as paths inside this repository and reported broken.
+  'mint-web',
   // `src/lib/obs.ts` cites the ingest contract it has to satisfy — `RUM_KINDS`, the `RumSample`
   // field list, the `kind` CHECK, and the line that reads `samples` — because that contract is a
   // set of line numbers in another repository and not a document. Listed here so those citations
@@ -85,15 +97,37 @@ function sourceFiles(dir: string): string[] {
   return out
 }
 
-/** A citation: a repository-relative path, a colon, and one line number or a range. */
-const CITATION = /\b((?:[a-z0-9_.-]+\/)+[A-Za-z0-9_.-]+\.(?:ts|tsx|css|yml|sol|md))\/?:(\d+)(?:-(\d+))?/g
+/**
+ * A citation: a repository-relative path to a file. NO LINE NUMBER.
+ *
+ * It used to require one, and requiring one is what this file is now the record of. See the header.
+ */
+const CITATION = /\b((?:[a-z0-9_.-]+\/)+[A-Za-z0-9_.-]+\.(?:ts|tsx|css|yml|sol|md))\b/g
+
+/** The same shape WITH a line, which is what the last check in this file refuses. */
+const CITATION_WITH_LINE = /\b((?:[a-z0-9_.-]+\/)+[A-Za-z0-9_.-]+\.(?:ts|tsx|css|yml|sol|md)):(\d+)/g
 
 interface Citation {
   readonly from: string
   readonly path: string
-  readonly first: number
-  readonly last: number
 }
+
+/**
+ * Directories inside THIS repository that a citation may be rooted at.
+ *
+ * Without this the sweep matches every relative import (`lib/api.ts`), every package specifier
+ * (`@cloudsforge/ui/tokens.css`) and every URL that happens to end in a source extension, and then
+ * reports all of them as citations to files that do not exist. A citation is rooted either at a
+ * sibling repository or at the top of this one; anything else is a module reference, which
+ * TypeScript already resolves and does not need a second, worse checker.
+ */
+const LOCAL_ROOTS: readonly string[] = ['src', 'test', 'public', 'scripts', '.github']
+
+/**
+ * `docs/` is the ESTATE's, not this repository's. The ecosystem documents live one level up beside
+ * every repository, so a citation to `docs/ecosystem/…` resolves there or nowhere.
+ */
+const ESTATE_ROOTS: readonly string[] = ['docs']
 
 function collect(): Citation[] {
   const out: Citation[] = []
@@ -101,8 +135,10 @@ function collect(): Citation[] {
     const text = readFileSync(file, 'utf8')
     for (const m of text.matchAll(CITATION)) {
       const path = m[1] ?? ''
-      const first = Number(m[2])
-      out.push({ from: relative(here, file), path, first, last: m[3] ? Number(m[3]) : first })
+      const head = path.split('/')[0] ?? ''
+      if (!SIBLINGS.includes(head) && !head.startsWith('micro-') && !LOCAL_ROOTS.includes(head) && !ESTATE_ROOTS.includes(head))
+        continue
+      out.push({ from: relative(here, file), path })
     }
   }
   return out
@@ -113,6 +149,10 @@ function resolve(path: string): string | null {
   const [head, ...rest] = path.split('/')
   const root = siblingRoot(head ?? '')
   if (root === undefined) {
+    if (ESTATE_ROOTS.includes(head ?? '')) {
+      const estate = join(here, '..', path)
+      return existsSync(estate) ? estate : null
+    }
     // Not a sibling: a path inside THIS repository.
     const local = join(here, path)
     return existsSync(local) ? local : null
@@ -124,7 +164,7 @@ function resolve(path: string): string | null {
 
 const CITATIONS = collect()
 
-describe('every citation names a line that exists', () => {
+describe('every citation names a file that exists, and names no line in it', () => {
   it('finds citations at all, so this cannot pass on an empty sweep', () => {
     // A regex that stopped matching would make this whole file a no-op that reads as a guarantee.
     assert.ok(CITATIONS.length >= 200, `found only ${CITATIONS.length} citations`)
@@ -148,18 +188,19 @@ describe('every citation names a line that exists', () => {
     )
   })
 
-  it('names a line INSIDE that file', () => {
-    const broken: string[] = []
-    for (const c of CITATIONS) {
-      const file = resolve(c.path)
-      if (file === null) continue
-      if (!statSync(file).isFile()) continue
-      const lines = readFileSync(file, 'utf8').split('\n').length
-      if (c.first < 1 || c.last > lines || c.last < c.first) {
-        broken.push(`${c.from} cites ${c.path}:${c.first}-${c.last}, but that file has ${lines} lines`)
+  it('carries no line numbers, because a line in another repository cannot be kept true here', () => {
+    // The rule, enforced rather than described. This check used to be its exact opposite: it
+    // required the cited line to be inside the file, which is a fact about a repository this one
+    // neither owns nor watches. Cite the file and, if a reader needs the exact place, name the
+    // symbol — `authoriseProject`, `withIdempotentRoute` — which moves with the code.
+    const withLines: string[] = []
+    for (const file of sourceFiles(here)) {
+      const text = readFileSync(file, 'utf8')
+      for (const m of text.matchAll(CITATION_WITH_LINE)) {
+        withLines.push(`${relative(here, file)} cites ${m[1]}:${m[2]} — cite the file or the symbol`)
       }
     }
-    assert.deepEqual(broken, [])
+    assert.deepEqual(withLines, [])
   })
 
   it('reports which repositories were NOT available, rather than passing quietly', (t) => {

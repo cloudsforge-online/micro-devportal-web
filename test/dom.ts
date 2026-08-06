@@ -5,7 +5,7 @@
  * ══════════════════════════════════════════════════════════════════════════════════════════════
  * WHY THIS FILE EXISTS ALONGSIDE `browser-stubs.ts`, WHICH SAYS THE OPPOSITE
  *
- * `test/browser-stubs.ts:4-8` states the estate's position: "There is no DOM in this suite on
+ * `test/browser-stubs.ts` states the estate's position: "There is no DOM in this suite on
  * purpose: jsdom is a second browser implementation to keep current, it disagrees with real ones
  * in exactly the places that matter, and a test that renders a component in it proves the
  * component renders in jsdom."
@@ -167,7 +167,7 @@ export interface MountOptions {
    */
   windowExtras?: Record<string, unknown>
   /**
-   * Mount inside `<StrictMode>`, the way `src/main.tsx:29` actually mounts this app.
+   * Mount inside `<StrictMode>`, the way `src/main.tsx` actually mounts this app.
    *
    * Default `false`, because most scenarios do not care and StrictMode doubles every render. It
    * matters for one class: a guard held in a `useRef` is CREATED TWICE on a StrictMode mount and
@@ -469,7 +469,7 @@ export async function mount(element: ReactElement, options: MountOptions = {}): 
   const { act } = React as unknown as { act: (fn: () => Promise<void> | void) => Promise<void> }
 
   // There was a `globalThis.React` here, and it is gone. It existed because `@cloudsforge/ui`
-  // named `src/index.tsx` as its entry point, so `link:` handed its raw TSX to THIS repository's
+  // named `ui/packages/ui/src/index.tsx` as its entry point, so `link:` handed its raw TSX to THIS repository's
   // loader, which compiled it under a tsconfig that did not `include` it and therefore fell back
   // to the CLASSIC JSX transform — `React.createElement` emitted into a module importing no
   // React. The entry points now name a committed `dist` (`ui/packages/ui/package.json`), so the

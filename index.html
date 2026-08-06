@@ -6,8 +6,8 @@
   colour.
 
   'developers' is azure, #4a86e0 — its own block in tokens.css
-  (`ui/packages/ui/src/tokens.css:428`), and the accent the registry gives this surface
-  (`ui/packages/ui/src/surfaces.ts:390`). Checked rather than assumed: `admin` was set against a
+  (`ui/packages/ui/src/tokens.css`), and the accent the registry gives this surface
+  (`ui/packages/ui/src/surfaces.ts`). Checked rather than assumed: `admin` was set against a
   selector that did not exist, and the console wore the company's colour by accident for as long as
   that was true. `test/brand-chrome.test.ts` reads tokens.css and asserts the block is there.
 
@@ -41,11 +41,11 @@
       byte-identical — test/brand-chrome.test.ts compares the bytes in both directions.
 
       This surface's entitled set is "mark, favicon, wordmark, og" — seven files, and deliberately
-      NO social banner (`brand/plan.ts:234-243`, `brand/README.md:41`, `brand/README.md:64-65`). The
-      og card IS shipped: brand/README.md:64 records that it "gained an `og` because devportal-web
+      NO social banner (`brand/plan.ts`, `brand/README.md`, `brand/README.md`). The
+      og card IS shipped: brand/README.md records that it "gained an `og` because devportal-web
       is public and its links get shared". The mark and wordmark are not referenced from this page,
       which needs a tab icon and a share card and nothing else; the registry also carries
-      `markId: null` for this surface (`ui/packages/ui/src/surfaces.ts:392`), so the design system
+      `markId: null` for this surface (`ui/packages/ui/src/surfaces.ts`), so the design system
       draws no inline mark for it either.
     -->
     <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png" />

@@ -8,16 +8,16 @@
  * ── Which routes are gated is read off the SERVICE, not chosen ────────────────────────────────
  *
  * Two of the four are public because `devplatform` made their routes public: `GET /v1/scopes`
- * (`devplatform/src/server.ts:744`), `GET /v1/apps` (`:1297`) and `GET /v1/apps/:slug` (`:1325`)
+ * (`devplatform/src/server.ts`), `GET /v1/apps` and `GET /v1/apps/:slug`
  * read no credential at all — their handlers take no principal and nothing on their path looks at
  * an `authorization` header. Putting either screen behind `ProtectedRoute` would send a visitor to
  * sign in for a page the service would have served them, which is the same class of mistake as
  * sending a bearer token to a route that never wanted one.
  *
  * The other two authenticate on every route beneath them, so they are gated. **The gate is not the
- * security boundary**: `devplatform` verifies the bearer itself (`devplatform/src/server.ts:525`),
- * asks identity for the caller's role per request (`:667`), and answers 404 rather than 403 for an
- * organisation or project the caller may not see (`:655`, `:629`).
+ * security boundary**: `devplatform` verifies the bearer itself (`devplatform/src/server.ts`),
+ * asks identity for the caller's role per request, and answers 404 rather than 403 for an
+ * organisation or project the caller may not see.
  */
 import { BrowserRouter, Route, Routes } from 'react-router-dom'
 import { AppShell } from './components/shell.tsx'

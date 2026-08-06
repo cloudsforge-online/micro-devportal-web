@@ -7,7 +7,7 @@
  * It cannot be. `api_keys` has no column a secret could be read back from — `secret_algo`,
  * `secret_salt` and `secret_hash` are a one-way function of the key, and `api_keys_slow_kdf_only`
  * refuses any row whose recorded algorithm is not a scrypt encoding
- * (`devplatform/src/migrations.ts:204`); `oauth_clients` carries the same constraint (`:244`).
+ * (`devplatform/src/migrations.ts`); `oauth_clients` carries the same constraint.
  * There is no reveal route, no support tool, and no operator with a way round it.
  *
  * So a sentence like "you can find it later in your dashboard", "we have emailed it to you" or

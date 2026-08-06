@@ -46,13 +46,13 @@
 #
 # Re-checked against micro-org rather than believed:
 #
-#   * the single checkout is fixed. web-ci.yml:88-115 checks the app out into `app/`, micro-ui into
+#   * the single checkout is fixed. web-ci.yml checks the app out into `app/`, micro-ui into
 #     `ui/` beside it, and installs THE SIBLING FIRST, because `link:` resolves to the sibling's own
 #     node_modules — the shape of the `check:` job below. micro-ui is public now, so even the
 #     `estate_token` fallback to `github.token` resolves.
-#   * the deep-route probe is fixed, and inverted. web-ci.yml:290-297 REQUIRES an unknown path to
+#   * the deep-route probe is fixed, and inverted. web-ci.yml REQUIRES an unknown path to
 #     answer 404 and names `try_files $uri /index.html` as the thing not to do; the 200 is now asked
-#     only of the optional `deep-link-path` input (:299-309), a route the app really has.
+#     only of the optional `deep-link-path` input, a route the app really has.
 #
 # So the two things that made a bespoke `check:` and `image:` unavoidable are gone. This file is
 # still not deleted, because what remains is not a workaround: `rules:` (line 471 below) was
@@ -260,38 +260,33 @@ jobs:
             echo "::error::micro-devplatform was not checked out; the route citations were never verified"
             exit 1
           }
-          # ── The line is READ out of the test, never written down here ──────────────────────────
+          # ── THERE IS NO LINE NUMBER TO READ ANY MORE, AND THAT IS THE POINT ────────────────────
           #
-          # Hardcoding `736` in this file makes it a THIRD copy of a citation that already lives in
-          # two places, and the copy is the one that goes stale. The day the key route moves and
-          # somebody correctly updates the table, a hardcoded grep fails with "the route
-          # cross-check did not run" — which is false, and sends the reader to the wrong place.
-          # This estate's recurring defect is a confident wrong diagnosis; a check that produces one
-          # when it is the check that is out of date has become the thing it was written to catch.
-          cited=$(grep -oE "path: '/v1/projects/:id/keys', line: [0-9]+" test/devplatform.test.ts | grep -oE '[0-9]+$' | head -1)
-          [ -n "${cited:-}" ] || {
-            echo "::error::no citation for POST /v1/projects/:id/keys in test/devplatform.test.ts; the surface table has changed shape"
-            exit 1
-          }
+          # This used to pull the cited line for POST /v1/projects/:id/keys out of the test and grep
+          # the output for it. The line number was itself the defect: it named a position in a file
+          # micro-devplatform owns, so a commit inserting 32 lines above its route table turned this
+          # repository red twice in one week while not one route had changed its method, path,
+          # authority or idempotency. The suite now finds each route by searching for its `define(`,
+          # which is the fact worth having and the one that survives the service being edited.
           out=$(node --import tsx --test test/devplatform.test.ts 2>&1 || true)
           if grep -q 'SKIPPED: no micro-devplatform checkout' <<<"$out"; then
             echo "::error::the route cross-check skipped itself while micro-devplatform was present"
             exit 1
           fi
-          grep -q "is registered at devplatform/src/server.ts:${cited}" <<<"$out" || {
+          grep -q "is registered in devplatform/src/server.ts" <<<"$out" || {
             echo "::error::the route cross-check did not run against devplatform/src/server.ts"
             exit 1
           }
-          # Thirty called routes plus five declined ones, each asserted against its own line.
+          # Thirty called routes plus five declined ones, each looked up in the service.
           #
           # DEDUPED before counting. node:test names each subtest twice — once as it runs and once
           # in the summary — so a raw `grep -c` reports double. The threshold would still pass, so
           # nothing would be broken; the LOG LINE would simply be wrong, which is the defect this
           # whole repository is built to avoid. A number nobody can reconcile is a number somebody
           # eventually reasons from.
-          count=$(printf '%s\n' "$out" | grep -oE 'is registered at devplatform/src/server\.ts:[0-9]+' | sort -u | wc -l | tr -d ' ')
+          count=$(printf '%s\n' "$out" | grep -oE '[A-Z]+ /v1/[^ ]+ is registered in devplatform/src/server\.ts' | sort -u | wc -l | tr -d ' ')
           [ "$count" -ge 35 ] || {
-            echo "::error::only $count route citations were verified; the surface has thirty-five"
+            echo "::error::only $count routes were checked against the service; the surface has thirty-five"
             exit 1
           }
           # And the MECHANISM half really ran too. A suite that verified every citation and skipped
@@ -308,12 +303,12 @@ jobs:
             echo "::error::only $auth routes had their authentication mechanism checked"
             exit 1
           }
-          echo "ok: $count cited routes verified against the service that serves them, mechanisms included"
+          echo "ok: $count routes verified against the service that serves them, mechanisms included"
 
       # …and the cross-check can fail. Bend one citation and require the suite to go red, so a
       # `devplatform.test.ts` reduced to assertions that always pass cannot look like a verified
       # client.
-      - name: …and it would have noticed a wrong citation
+      - name: …and it would have noticed a route the service does not serve
         working-directory: devportal-web
         run: |
           set -euo pipefail
@@ -321,28 +316,30 @@ jobs:
           restore() { cp "$RUNNER_TEMP/devplatform.test.ts.orig" test/devplatform.test.ts; }
           trap restore EXIT
 
-          # Read the cited line and bend THAT, rather than naming a number here. A `sed` that names
-          # a line the file no longer carries is a silent no-op: the suite then passes UNCHANGED and
-          # this step reports "the cross-check passed a citation off by one line", accusing a
-          # correct test of being fake. Deriving the number makes the mutation real, and the
-          # assertion below makes "the mutation happened" a checked fact rather than an assumption.
-          cited=$(grep -oE "path: '/v1/projects/:id/keys', line: [0-9]+" test/devplatform.test.ts | grep -oE '[0-9]+$' | head -1)
-          [ -n "${cited:-}" ] || {
-            echo "::error::no citation for POST /v1/projects/:id/keys in test/devplatform.test.ts"
+          # THE MUTATION IS A PATH NOW, NOT A LINE. Bending a line number tested that the suite read
+          # a particular POSITION in the service; bending a path tests that it read the service at
+          # all, which is the property actually worth having and the only one that survives
+          # micro-devplatform being edited. POST /v1/projects/:id/keys is a route the service really
+          # registers, so renaming it to one it does not must turn this suite red.
+          #
+          # The mutation is asserted to have HAPPENED before its effect is judged: a `sed` that
+          # matched nothing is a silent no-op, and this step would then report a correct test as
+          # fake — a confident wrong diagnosis, which is the defect this repository exists to avoid.
+          grep -q "path: '/v1/projects/:id/keys'" test/devplatform.test.ts || {
+            echo "::error::POST /v1/projects/:id/keys is not in the surface table; it has changed shape"
             exit 1
           }
-          bent=$((cited + 1))
-          sed -i "s|path: '/v1/projects/:id/keys', line: ${cited}|path: '/v1/projects/:id/keys', line: ${bent}|" test/devplatform.test.ts
+          sed -i "s|path: '/v1/projects/:id/keys'|path: '/v1/projects/:id/keys-that-do-not-exist'|" test/devplatform.test.ts
           if cmp -s test/devplatform.test.ts "$RUNNER_TEMP/devplatform.test.ts.orig"; then
             echo "::error::the mutation changed nothing, so this step proves nothing"
             exit 1
           fi
 
           if node --import tsx --test test/devplatform.test.ts >/dev/null 2>&1; then
-            echo "::error::the cross-check passed with POST /v1/projects/:id/keys cited at ${bent} instead of ${cited} — it is not reading the service"
+            echo "::error::the cross-check passed with a route micro-devplatform does not serve — it is not reading the service"
             exit 1
           fi
-          echo "ok: moving one citation from ${cited} to ${bent} turns the suite red, so a pass is evidence"
+          echo "ok: naming a route the service does not serve turns the suite red, so a pass is evidence"
 
       # …and the MECHANISM half can fail too, which is a different claim from the citation half.
       # The route table records HOW each route authenticates because a boolean grep for
@@ -358,7 +355,7 @@ jobs:
           trap restore EXIT
 
           before=$(grep -c "auth: 'none'" test/devplatform.test.ts)
-          sed -i "s|path: '/v1/projects/:id/keys', line: \([0-9]*\), auth: 'project:write'|path: '/v1/projects/:id/keys', line: \1, auth: 'none'|" test/devplatform.test.ts
+          sed -i "s|path: '/v1/projects/:id/keys', auth: 'project:write'|path: '/v1/projects/:id/keys', auth: 'none'|" test/devplatform.test.ts
           after=$(grep -c "auth: 'none'" test/devplatform.test.ts)
           [ "$after" -gt "$before" ] || {
             echo "::error::the mutation changed nothing, so this step proves nothing"
@@ -535,15 +532,24 @@ jobs:
         # the `devplatform/src/server.ts:<line>` citations.
         run: |
           set -uo pipefail
-          # Lines carrying a citation, not routes: one wrapper's prose often cites several. The
-          # floor is the ROUTE COUNT, which every one of them must at least reach — the exact
-          # per-route check is test/devplatform.test.ts's, and this is the half that survives the
-          # test file being deleted.
-          cites=$(grep -coE 'devplatform/src/server\.ts:[0-9]+' src/lib/devplatform.ts || true)
-          if [ "${cites:-0}" -lt 35 ]; then
-            echo "::error::src/lib/devplatform.ts carries ${cites:-0} lines of route citation; the surface has thirty-five routes"
+          # ROWS IN THE CLIENT'S OWN TABLES, not citations carrying a line number.
+          #
+          # This counted `devplatform/src/server.ts:<line>` and required thirty-five of them, which
+          # made a line number a CI requirement — the exact practice that turned this repository red
+          # twice in a week for edits made in micro-devplatform. What the count was standing in for
+          # is that every route the console calls or declines is written down somewhere a reader can
+          # find the REASON, and that is a table row. The exact per-route check is
+          # test/devplatform.test.ts's; this is the half that survives the test file being deleted.
+          rows=$(grep -coE '^ \* \| `[A-Z]+` +\| `/v1/' src/lib/devplatform.ts || true)
+          if [ "${rows:-0}" -lt 35 ]; then
+            echo "::error::src/lib/devplatform.ts documents ${rows:-0} routes in its tables; the surface has thirty-five"
             exit 1
           fi
+          grep -q 'devplatform/src/server.ts' src/lib/devplatform.ts || {
+            echo "::error::src/lib/devplatform.ts no longer says which service source its surface was read from"
+            exit 1
+          }
+          cites=$rows
           if grep -rn --include='*.tsx' -E "api<[^>]*>\(\s*[\`'\"]/v1/" src; then
             echo "::error::a page calls /v1 directly; every call goes through src/lib/devplatform.ts, where it is cited"
             exit 1
@@ -628,7 +634,7 @@ jobs:
       - name: No act-as-anyone parameter
         # A developer acts as themselves. devplatform derives the acting principal from the token
         # and reads a project's organisation from the ROW rather than from the request
-        # (devplatform/src/server.ts:630-635), so there is no parameter to expose — and a control
+        # (devplatform/src/server.ts), so there is no parameter to expose — and a control
         # shaped like one in a customer console is how an operator primitive ends up in a product.
         run: |
           set -uo pipefail
@@ -668,7 +674,7 @@ jobs:
           # `grep -q … < <(strip …)` rather than `strip … | grep -q …`: grep -q exits on its first
           # match by design, and under `pipefail` the producer's EPIPE (141) became the pipeline's
           # status. That failed in the DANGEROUS direction — the `||` below fired and declared the
-          # refusal missing while it was present at src/lib/devplatform.ts:865. Measured here: the
+          # refusal missing while it was present at src/lib/devplatform.ts. Measured here: the
           # piped form said MISSING on 10 of 20 runs; this form is correct on 20 of 20. Process
           # substitution keeps grep's own exit status, so the rule still means exactly what it did.
           grep -q 'quota_raise_refused' < <(strip src/lib/devplatform.ts) || {
@@ -683,13 +689,13 @@ jobs:
 
       - name: A path id is never sent malformed
         # A malformed :id reaches a uuid column on every route that predates requireUuid and comes
-        # back as 500 internal rather than 400 — devplatform/src/server.ts:1673-1692 says so, and
+        # back as 500 internal rather than 400 — devplatform/src/server.ts says so, and
         # declines to change the shipped status codes in one commit. It deliberately writes down NO
         # count: this comment used to say "eleven", micro-devplatform@aadf5a6 deleted that number
         # because three readers had counted eleven, nineteen and twenty-five, and the source and
         # README were corrected while this copy was not. The command is the honest form of it:
         #
-        #     grep -oE "'/v1/[^']*:id[^']*'" src/server.ts | sort -u | wc -l   # 19 at aadf5a6
+        #     grep -oE "'/v1/[^']*:id[^']*'" devplatform/src/server.ts | sort -u | wc -l   # 19 at aadf5a6
         #
         # This console's addresses ARE those ids, so a typo must not read as an outage. Asserted
         # here as well as in the suite, because deleting the test would otherwise delete the rule.
@@ -854,12 +860,12 @@ jobs:
   # already drifted:
   #
   #   generator  `cfctl release` pins one image per deployable, the name from
-  #              org/tools/registry.ts:367-369 (`ghcr.io/<org>/<repo.repo>`, which is why the package
+  #              org/tools/registry.ts (`ghcr.io/<org>/<repo.repo>`, which is why the package
   #              is micro-<app> and not <app>) and the tag from that repository's package.json
-  #              version, org/tools/cfctl.ts:962-968.
+  #              version, org/tools/cfctl.ts.
   #   verifier   `cfctl release --verify` runs `docker manifest inspect` on EVERY entry and returns
-  #              non-zero if one cannot be pulled, org/tools/cfctl.ts:997-1038.
-  #   deployer   deploy/scripts/release-deploy.sh:99-124 refuses to change anything while any image
+  #              non-zero if one cannot be pulled, org/tools/cfctl.ts.
+  #   deployer   deploy/scripts/release-deploy.sh refuses to change anything while any image
   #              is missing.
   #
   # A frontend with no producer was therefore a manifest entry that could never verify.

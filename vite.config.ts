@@ -37,15 +37,15 @@ export default defineConfig({
   // ════════════════════════════════════════════════════════════════════════════════════════════
   // 5192 IS A VITE PORT. IT IS NOT THE REGISTRY'S `developers` ENTRY, AND IT MUST NOT BE.
   //
-  // The registry gives `developers` devPort **3012** (`ui/packages/ui/src/surfaces.ts:389`).
+  // The registry gives `developers` devPort **3012** (`ui/packages/ui/src/surfaces.ts`).
   // `LOCAL_HOSTS` in @cloudsforge/ui builds `http://localhost:<devPort>` for EVERY surface
-  // (`ui/packages/ui/src/index.tsx:136`), so under `pnpm dev` this bundle resolves its own API
+  // (`ui/packages/ui/src/index.tsx`), so under `pnpm dev` this bundle resolves its own API
   // base to `http://localhost:3012`. If Vite also served the page there, the SPA and the service
   // would be fighting for one port and `resolveApiBase` would collapse to '' against a server
   // that has no `/v1` on it.
   //
   // So Vite is on its own port and 3012 is where `micro-devplatform` is expected to answer.
-  // `devplatform` binds **4000**: `devplatform/src/env.ts:197` defaults `PORT` to 4000 and
+  // `devplatform` binds **4000**: `devplatform/src/env.ts` defaults `PORT` to 4000 and
   // `devplatform/.env.example:27` sets it to 4000. Run it with `PORT=3012 pnpm start`; the README
   // says so in one line, next to the citation.
   //

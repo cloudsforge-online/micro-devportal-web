@@ -13,7 +13,7 @@
  * around here.
  *
  * `devplatform` registers its routes through one `define(method, path, handler)` list
- * (`devplatform/src/server.ts:714-1600`), so the surface is enumerable and the citations are
+ * (`devplatform/src/server.ts`), so the surface is enumerable and the citations are
  * stable. `test/devplatform.test.ts` reads that file and fails if any line below is not the line
  * that registers the route, and CI bends a citation to prove the check can go red.
  *
@@ -25,14 +25,14 @@
  * ══════════════════════════════════════════════════════════════════════════════════════════════
  * **HOW EACH ROUTE AUTHENTICATES — NOT MERELY WHETHER, AND THIS SERVICE IS WHY.**
  *
- * There is no middleware. `handle()` (`devplatform/src/server.ts:415-460`) dispatches straight
+ * There is no middleware. `handle()` (`devplatform/src/server.ts`) dispatches straight
  * into each route's own closure, so authentication is whatever that closure calls. And **not one
  * of the 35 `/v1` handlers contains a literal `await authenticate(ctx, deps)`.** That call appears
  * exactly three times in the whole file and never inside a route:
  *
- *   * `authenticateUser`   — `devplatform/src/server.ts:567`
- *   * `authenticateKeyOnly`— `devplatform/src/server.ts:574`
- *   * `authoriseProject`   — `devplatform/src/server.ts:610`
+ *   * `authenticateUser`   — `devplatform/src/server.ts`
+ *   * `authenticateKeyOnly`— `devplatform/src/server.ts`
+ *   * `authoriseProject`   — `devplatform/src/server.ts`
  *
  * `micro-worlds-web`'s route test greps each handler body for `await authenticate(ctx, deps)` and
  * asserts a boolean. Run against this service that check declares **all thirty-five routes public**,
@@ -44,63 +44,63 @@
  * The ten, and what each admits:
  *
  *   `none`        No credential is read. The handler takes no principal.
- *   `key`         `authenticateKeyOnly` — an API key ONLY. A user JWT is a 403 (`:575`).
- *   `user+admin`  `authenticateUser` plus `permits(role, ADMIN_ROLES)` against identity (`:785`).
+ *   `key`         `authenticateKeyOnly` — an API key ONLY. A user JWT is a 403.
+ *   `user+admin`  `authenticateUser` plus `permits(role, ADMIN_ROLES)` against identity.
  *   `user+member` `authenticateUser` plus `permits(role, READ_ROLES)` against identity, for the
- *                 IDENTITY organisation named in the query rather than a developer one (`:826`).
+ *                 IDENTITY organisation named in the query rather than a developer one.
  *   `org:read` / `org:write`
- *                 `authoriseOrg(ctx, deps, id, …)` (`:646`) — a USER token only (`:652`), whose
+ *                 `authoriseOrg(ctx, deps, id, …)` — a USER token only, whose
  *                 role in the identity organisation is asked of identity per request.
  *   `project:read` / `project:write`
- *                 `authoriseProject(ctx, deps, id, …)` (`:604`) — a user token OR an API key. A
+ *                 `authoriseProject(ctx, deps, id, …)` — a user token OR an API key. A
  *                 key may act only within its own project, because the project id is read from the
- *                 ROW and never from the request (`:631-636`).
- *   `operator`    `requireOperator` (`:561-563`) — a SERVICE token carrying the exact scope
- *                 `devplatform:admin`, or a user token with the platform role `admin` (`:554-558`).
+ *                 ROW and never from the request.
+ *   `operator`    `requireOperator` — a SERVICE token carrying the exact scope
+ *                 `devplatform:admin`, or a user token with the platform role `admin`.
  *                 **A browser can never hold the scope**: `devplatform:admin` is deliberately absent
- *                 from `devplatform/src/scopes.ts:5-19`, so `validateScopes` refuses it at issuance
+ *                 from `devplatform/src/scopes.ts`, so `validateScopes` refuses it at issuance
  *                 and no API key row can carry it. A signed-in CloudsForge platform admin WOULD
  *                 satisfy it with their user token, which is exactly why the two operator routes are
  *                 declined below on judgement rather than on a 403.
  *   `operator-or-lower`
  *                 `PUT /v1/projects/:id/quotas` alone, and the direction is the authority. See its
  *                 wrapper for the whole rule.
- *   `hmac`        A signature over the raw bytes, checked before `JSON.parse` (`:1506-1512`).
+ *   `hmac`        A signature over the raw bytes, checked before `JSON.parse`.
  *
  * ── CALLED ────────────────────────────────────────────────────────────────────────────────────
  *
  * | Method   | Path                                       | Authenticates    | Verified at                       |
  * | -------- | ------------------------------------------ | ---------------- | --------------------------------- |
- * | `GET`    | `/v1/scopes`                               | **none**         | `devplatform/src/server.ts:744`   |
- * | `POST`   | `/v1/organisations`                        | `user+admin`     | `devplatform/src/server.ts:777`   |
- * | `GET`    | `/v1/organisations`                        | `user+member`    | `devplatform/src/server.ts:816`   |
- * | `GET`    | `/v1/organisations/:id`                    | `org:read`       | `devplatform/src/server.ts:831`   |
- * | `GET`    | `/v1/organisations/:id/projects`           | `org:read`       | `devplatform/src/server.ts:839`   |
- * | `POST`   | `/v1/projects`                             | `org:write`      | `devplatform/src/server.ts:847`   |
- * | `GET`    | `/v1/projects/:id`                         | `project:read`   | `devplatform/src/server.ts:870`   |
- * | `POST`   | `/v1/projects/:id/service-accounts`        | `project:write`  | `devplatform/src/server.ts:882`   |
- * | `GET`    | `/v1/projects/:id/service-accounts`        | `project:read`   | `devplatform/src/server.ts:893`   |
- * | `POST`   | `/v1/projects/:id/keys`                    | `project:write`  | `devplatform/src/server.ts:912`   |
- * | `GET`    | `/v1/projects/:id/keys`                    | `project:read`   | `devplatform/src/server.ts:968`   |
- * | `DELETE` | `/v1/keys/:id`                             | `project:write`  | `devplatform/src/server.ts:990`   |
- * | `PUT`    | `/v1/projects/:id/quotas`                  | `operator-or-lower` | `devplatform/src/server.ts:1045`  |
- * | `GET`    | `/v1/projects/:id/quotas`                  | `project:read`   | `devplatform/src/server.ts:1097`  |
- * | `GET`    | `/v1/projects/:id/usage`                   | `project:read`   | `devplatform/src/server.ts:1107`  |
- * | `POST`   | `/v1/projects/:id/webhook-endpoints`       | `project:write`  | `devplatform/src/server.ts:1117`  |
- * | `GET`    | `/v1/projects/:id/webhook-endpoints`       | `project:read`   | `devplatform/src/server.ts:1148`  |
- * | `POST`   | `/v1/webhook-endpoints/:id/rotate-secret`  | `project:write`  | `devplatform/src/server.ts:1157`  |
- * | `POST`   | `/v1/webhook-endpoints/:id/disable`        | `project:write`  | `devplatform/src/server.ts:1188`  |
- * | `POST`   | `/v1/webhook-endpoints/:id/enable`         | `project:write`  | `devplatform/src/server.ts:1212`  |
- * | `DELETE` | `/v1/webhook-endpoints/:id`                | `project:write`  | `devplatform/src/server.ts:1222`  |
- * | `GET`    | `/v1/webhook-endpoints/:id/deliveries`     | `project:read`   | `devplatform/src/server.ts:1231`  |
- * | `POST`   | `/v1/projects/:id/oauth-clients`           | `project:write`  | `devplatform/src/server.ts:1241`  |
- * | `GET`    | `/v1/projects/:id/oauth-clients`           | `project:read`   | `devplatform/src/server.ts:1278`  |
- * | `DELETE` | `/v1/oauth-clients/:id`                    | `project:write`  | `devplatform/src/server.ts:1283`  |
- * | `GET`    | `/v1/apps`                                 | **none**         | `devplatform/src/server.ts:1297`  |
- * | `GET`    | `/v1/apps/:slug`                           | **none**         | `devplatform/src/server.ts:1325`  |
- * | `PUT`    | `/v1/projects/:id/application`             | `project:write`  | `devplatform/src/server.ts:1332`  |
- * | `GET`    | `/v1/projects/:id/application`             | `project:read`   | `devplatform/src/server.ts:1346`  |
- * | `POST`   | `/v1/projects/:id/application/submit`      | `project:write`  | `devplatform/src/server.ts:1354`  |
+ * | `GET`    | `/v1/scopes`                               | **none**         | `devplatform/src/server.ts`   |
+ * | `POST`   | `/v1/organisations`                        | `user+admin`     | `devplatform/src/server.ts`   |
+ * | `GET`    | `/v1/organisations`                        | `user+member`    | `devplatform/src/server.ts`   |
+ * | `GET`    | `/v1/organisations/:id`                    | `org:read`       | `devplatform/src/server.ts`   |
+ * | `GET`    | `/v1/organisations/:id/projects`           | `org:read`       | `devplatform/src/server.ts`   |
+ * | `POST`   | `/v1/projects`                             | `org:write`      | `devplatform/src/server.ts`   |
+ * | `GET`    | `/v1/projects/:id`                         | `project:read`   | `devplatform/src/server.ts`   |
+ * | `POST`   | `/v1/projects/:id/service-accounts`        | `project:write`  | `devplatform/src/server.ts`   |
+ * | `GET`    | `/v1/projects/:id/service-accounts`        | `project:read`   | `devplatform/src/server.ts`   |
+ * | `POST`   | `/v1/projects/:id/keys`                    | `project:write`  | `devplatform/src/server.ts`   |
+ * | `GET`    | `/v1/projects/:id/keys`                    | `project:read`   | `devplatform/src/server.ts`   |
+ * | `DELETE` | `/v1/keys/:id`                             | `project:write`  | `devplatform/src/server.ts`   |
+ * | `PUT`    | `/v1/projects/:id/quotas`                  | `operator-or-lower` | `devplatform/src/server.ts`  |
+ * | `GET`    | `/v1/projects/:id/quotas`                  | `project:read`   | `devplatform/src/server.ts`  |
+ * | `GET`    | `/v1/projects/:id/usage`                   | `project:read`   | `devplatform/src/server.ts`  |
+ * | `POST`   | `/v1/projects/:id/webhook-endpoints`       | `project:write`  | `devplatform/src/server.ts`  |
+ * | `GET`    | `/v1/projects/:id/webhook-endpoints`       | `project:read`   | `devplatform/src/server.ts`  |
+ * | `POST`   | `/v1/webhook-endpoints/:id/rotate-secret`  | `project:write`  | `devplatform/src/server.ts`  |
+ * | `POST`   | `/v1/webhook-endpoints/:id/disable`        | `project:write`  | `devplatform/src/server.ts`  |
+ * | `POST`   | `/v1/webhook-endpoints/:id/enable`         | `project:write`  | `devplatform/src/server.ts`  |
+ * | `DELETE` | `/v1/webhook-endpoints/:id`                | `project:write`  | `devplatform/src/server.ts`  |
+ * | `GET`    | `/v1/webhook-endpoints/:id/deliveries`     | `project:read`   | `devplatform/src/server.ts`  |
+ * | `POST`   | `/v1/projects/:id/oauth-clients`           | `project:write`  | `devplatform/src/server.ts`  |
+ * | `GET`    | `/v1/projects/:id/oauth-clients`           | `project:read`   | `devplatform/src/server.ts`  |
+ * | `DELETE` | `/v1/oauth-clients/:id`                    | `project:write`  | `devplatform/src/server.ts`  |
+ * | `GET`    | `/v1/apps`                                 | **none**         | `devplatform/src/server.ts`  |
+ * | `GET`    | `/v1/apps/:slug`                           | **none**         | `devplatform/src/server.ts`  |
+ * | `PUT`    | `/v1/projects/:id/application`             | `project:write`  | `devplatform/src/server.ts`  |
+ * | `GET`    | `/v1/projects/:id/application`             | `project:read`   | `devplatform/src/server.ts`  |
+ * | `POST`   | `/v1/projects/:id/application/submit`      | `project:write`  | `devplatform/src/server.ts`  |
  *
  * ── DECLINED, EACH FOR A STATED REASON ────────────────────────────────────────────────────────
  *
@@ -110,16 +110,16 @@
  *
  * | Method | Path                                  | Verified at                      | Why not here |
  * | ------ | ------------------------------------- | -------------------------------- | ------------ |
- * | `GET`  | `/v1/keys/self`                       | `devplatform/src/server.ts:764`  | The whoami for a MACHINE credential. `authenticateKeyOnly` (`:765`, `:573-577`) refuses anything that is not a `cfk_…` string, so the user JWT this bundle holds is a 403 — and the only way to satisfy it would be for a browser to hold a live API key, which is the one thing this product exists to stop happening. It is the SDK's route, not the console's. |
- * | `GET`  | `/v1/keys/:id`                        | `devplatform/src/server.ts:975`  | It answers the identical `ApiKeySummary` (`devplatform/src/apikeys.ts:137-156`) that `GET /v1/projects/:id/keys` already returns for every key in the project, and this app has no per-key address. A second read of a row the console is already holding is a request that can only disagree with itself. |
- * | `GET`  | `/v1/apps/pending`                    | `devplatform/src/server.ts:1317` | **An operator route, and this is a customer console.** It lists every OTHER customer's unpublished submission (`devplatform/src/applications.ts:323-326` filters `GET /v1/apps` to `listed`; this one does the opposite), keyed on nothing the reader owns. A CloudsForge platform admin signing in here with the `admin` role would get a 200 — which is precisely the argument for not drawing it: a control that works for one class of reader and 403s for every other reader of the same screen teaches the wrong thing about who this product is for. The reviewer's queue belongs on the operator surface, next to the decision it feeds. |
- * | `PUT`  | `/v1/projects/:id/application/status` | `devplatform/src/server.ts:1378` | **The route this file asked for, and it must not be called from here.** It closes the "nothing can approve a submitted application" finding — `setApplicationStatus` was imported and called by nothing — and the service states the reason it is an operator's: "A directory a developer can publish to unilaterally is a directory that eventually hosts a phishing page wearing this platform's chrome", with the OAuth consent screen a user reads rendered from exactly this row (`:1368-1371`). A submitting party holding the approving control is the defect, not the fix. Declined here, and the closure is recorded rather than left implied. |
- * | `POST` | `/v1/events`                          | `devplatform/src/server.ts:1505` | The internal inbox. It is HMAC-checked over the exact bytes received BEFORE `JSON.parse` (`:1506-1512`) against `DEVPLATFORM_INGEST_SECRETS`. A browser cannot hold that secret, and a bundle that shipped it would BE the revoke-anybody's-credentials endpoint the check exists to prevent (`devplatform/src/env.ts:140-146`). |
+ * | `GET`  | `/v1/keys/self`                       | `devplatform/src/server.ts`  | The whoami for a MACHINE credential. `authenticateKeyOnly` refuses anything that is not a `cfk_…` string, so the user JWT this bundle holds is a 403 — and the only way to satisfy it would be for a browser to hold a live API key, which is the one thing this product exists to stop happening. It is the SDK's route, not the console's. |
+ * | `GET`  | `/v1/keys/:id`                        | `devplatform/src/server.ts`  | It answers the identical `ApiKeySummary` (`devplatform/src/apikeys.ts`) that `GET /v1/projects/:id/keys` already returns for every key in the project, and this app has no per-key address. A second read of a row the console is already holding is a request that can only disagree with itself. |
+ * | `GET`  | `/v1/apps/pending`                    | `devplatform/src/server.ts` | **An operator route, and this is a customer console.** It lists every OTHER customer's unpublished submission (`devplatform/src/applications.ts` filters `GET /v1/apps` to `listed`; this one does the opposite), keyed on nothing the reader owns. A CloudsForge platform admin signing in here with the `admin` role would get a 200 — which is precisely the argument for not drawing it: a control that works for one class of reader and 403s for every other reader of the same screen teaches the wrong thing about who this product is for. The reviewer's queue belongs on the operator surface, next to the decision it feeds. |
+ * | `PUT`  | `/v1/projects/:id/application/status` | `devplatform/src/server.ts` | **The route this file asked for, and it must not be called from here.** It closes the "nothing can approve a submitted application" finding — `setApplicationStatus` was imported and called by nothing — and the service states the reason it is an operator's: "A directory a developer can publish to unilaterally is a directory that eventually hosts a phishing page wearing this platform's chrome", with the OAuth consent screen a user reads rendered from exactly this row. A submitting party holding the approving control is the defect, not the fix. Declined here, and the closure is recorded rather than left implied. |
+ * | `POST` | `/v1/events`                          | `devplatform/src/server.ts` | The internal inbox. It is HMAC-checked over the exact bytes received BEFORE `JSON.parse` against `DEVPLATFORM_INGEST_SECRETS`. A browser cannot hold that secret, and a bundle that shipped it would BE the revoke-anybody's-credentials endpoint the check exists to prevent (`devplatform/src/env.ts`). |
  *
- * `/livez` (`:717`), `/readyz` (`:719`) and `/metrics` (`:724`) are served as well, and so are
- * three `/internal` routes — `POST /internal/keys/verify` (`:1406`), `POST /internal/oauth/verify`
- * (`:1426`) and `POST /internal/usage` (`:1460`). None is reachable from a browser:
- * `deploy/gateway/dynamic/policy.yml:100-102` refuses any path matching `^/+internal(/|$)` at
+ * `/livez`, `/readyz` and `/metrics` are served as well, and so are
+ * three `/internal` routes — `POST /internal/keys/verify`, `POST /internal/oauth/verify`
+ * and `POST /internal/usage`. None is reachable from a browser:
+ * `deploy/gateway/dynamic/policy.yml` refuses any path matching `^/+internal(/|$)` at
  * priority 100000 and routes it to an unreachable upstream. They are not wrapped here and they are
  * not in the tables above, which cover `/v1` only.
  * ══════════════════════════════════════════════════════════════════════════════════════════════
@@ -127,7 +127,7 @@
  * ── A MALFORMED ID IS A 500 UPSTREAM, SO THIS CLIENT NEVER SENDS ONE ──────────────────────────
  *
  * `ctx.params['id']` goes straight into a comparison against a `uuid` column on every route that
- * predates `requireUuid` (`devplatform/src/server.ts:1673-1696`), and Postgres answers `22P02
+ * predates `requireUuid` (`devplatform/src/server.ts`), and Postgres answers `22P02
  * invalid input syntax for type uuid`, which arrives at the client as **`500 internal`**. So
  * `GET /v1/projects/not-a-uuid` reports a server fault for a typed URL. Changing the status code of
  * every shipped route is devplatform's decision to make and is reported there, not worked around
@@ -140,19 +140,19 @@
  * Four routes return a credential, and each returns it exactly once:
  *
  *   * `POST /v1/projects/:id/keys` → `secretKey`, plus the service's own sentence in `note`
- *     (`devplatform/src/server.ts:954-965`)
- *   * `POST /v1/projects/:id/webhook-endpoints` → `secret` (`:1145`)
- *   * `POST /v1/webhook-endpoints/:id/rotate-secret` → `secret` (`:1175`)
- *   * `POST /v1/projects/:id/oauth-clients` → `clientSecret` (`:1275`)
+ *     (`devplatform/src/server.ts`)
+ *   * `POST /v1/projects/:id/webhook-endpoints` → `secret`
+ *   * `POST /v1/webhook-endpoints/:id/rotate-secret` → `secret`
+ *   * `POST /v1/projects/:id/oauth-clients` → `clientSecret`
  *
  * **There is no route that returns any of them a second time, and for an API key there is no
  * column one could be read back from.** `api_keys` has no secret column at all: `secret_algo`,
  * `secret_salt` and `secret_hash` are a one-way function of the key, and the CHECK constraint
- * `api_keys_slow_kdf_only` (`devplatform/src/migrations.ts:204`) refuses any row whose recorded
+ * `api_keys_slow_kdf_only` (`devplatform/src/migrations.ts`) refuses any row whose recorded
  * algorithm is not a scrypt encoding — `^scrypt\$N=…,r=…,p=…,keyLen=…$`. `oauth_clients` carries
- * the same constraint (`devplatform/src/migrations.ts:244`). The comment above it says what it is
+ * the same constraint (`devplatform/src/migrations.ts`). The comment above it says what it is
  * for in one line: "the day someone reaches for createHash because it is one line shorter, this is
- * what stops it" (`devplatform/src/migrations.ts:201-203`).
+ * what stops it" (`devplatform/src/migrations.ts`).
  *
  * So this app may never draw a "show key" control, a "reveal" toggle or a "copy again" affordance,
  * and it may never word a message as though the secret could be recovered by support. It cannot
@@ -161,8 +161,8 @@
  *
  * **The one honest exception, stated rather than hidden.** A webhook signing secret IS stored
  * recoverably, because HMAC is not a one-way function of an input the service does not have:
- * signing a delivery requires the secret itself (`devplatform/src/migrations.ts:59-66`). It is
- * still shown once — no route returns it afterwards (`devplatform/src/webhooks.ts:148`) — and
+ * signing a delivery requires the secret itself (`devplatform/src/migrations.ts`). It is
+ * still shown once — no route returns it afterwards (`devplatform/src/webhooks.ts`) — and
  * rotation keeps the old one verifying for an overlap window. This app says that, in those words,
  * rather than implying a webhook secret is hashed like a key.
  *
@@ -170,7 +170,7 @@
  *
  * All four are wrapped in `withIdempotentRoute`, and the stored idempotency response deliberately
  * carries the METADATA only. The secret is re-attached to the FIRST response and nowhere else
- * (`devplatform/src/server.ts:907-910`), so a replay answers `200` with `replayed: true` and
+ * (`devplatform/src/server.ts`), so a replay answers `200` with `replayed: true` and
  * `secretKey: null`. A client that read the null as an error would tell a developer their key had
  * failed to be created when it exists and is live. Every one of the four wrappers below returns
  * the null verbatim, and the screens render it as what it is.
@@ -180,7 +180,7 @@ import { idempotently } from './idempotency.ts'
 
 /* ══════════════════════════════ ids never leave here malformed ══════════════════════════════ */
 
-/** RFC 4122, matching `devplatform/src/server.ts:1693-1696`'s own `UUID` test. */
+/** RFC 4122, matching `devplatform/src/server.ts`'s own `UUID` test. */
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 
 /**
@@ -194,7 +194,7 @@ const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
  * through. Postgres answers `22P02 invalid input syntax for type uuid`, which is not caught, so
  * `GET /v1/projects/not-a-uuid` arrives here as **`500 internal`** rather than a 400 or a 404. The
  * service says so itself and declines to change it in the same commit
- * (`devplatform/src/server.ts:1680-1684`) — reported there, and correctly a separate decision.
+ * (`devplatform/src/server.ts`) — reported there, and correctly a separate decision.
  *
  * The addresses of this console ARE those ids: `/projects/<uuid>/keys` is what a developer
  * bookmarks and what they mistype. So this bundle simply never sends one, and a mistyped address
@@ -202,7 +202,7 @@ const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
  * situation would send somebody to the status page over their own typo.
  *
  * `ApiError(0, …)` rather than a plain `Error`: every failure surface in this app reads `ApiError`
- * (`src/lib/api.ts:169-181`), and a bare throw would render as the generic fallback with no
+ * (`src/lib/api.ts`), and a bare throw would render as the generic fallback with no
  * sentence. Status 0 is this app's "the request never went out", which is exactly what happened.
  * ══════════════════════════════════════════════════════════════════════════════════════════════
  */
@@ -220,7 +220,7 @@ function assertUuid(value: string, what: string): string {
 
 /* ══════════════════════════════ the wire shapes ══════════════════════════════ */
 
-/** `devplatform/src/orgs.ts:83-90`. A developer organisation is an ENROLMENT of an identity one. */
+/** `devplatform/src/orgs.ts`. A developer organisation is an ENROLMENT of an identity one. */
 export interface DeveloperOrg {
   readonly id: string
   readonly identityOrgId: string
@@ -230,11 +230,11 @@ export interface DeveloperOrg {
   readonly createdAt: string
 }
 
-/** `devplatform/src/keys.ts:133`. Two environments, and both are ROWS — see `Environment`. */
+/** `devplatform/src/keys.ts`. Two environments, and both are ROWS — see `Environment`. */
 export const KEY_ENVIRONMENTS = ['live', 'test'] as const
 export type KeyEnvironment = (typeof KEY_ENVIRONMENTS)[number]
 
-/** `devplatform/src/orgs.ts:197-201`. */
+/** `devplatform/src/orgs.ts`. */
 export interface Environment {
   readonly id: string
   readonly projectId: string
@@ -242,10 +242,10 @@ export interface Environment {
 }
 
 /**
- * `devplatform/src/orgs.ts:203-211`.
+ * `devplatform/src/orgs.ts`.
  *
- * A project is created WITH both environments in one transaction (`devplatform/src/orgs.ts:262-273`)
- * and with its default quotas in the same commit (`devplatform/src/server.ts:859-864`), so there is
+ * A project is created WITH both environments in one transaction (`devplatform/src/orgs.ts`)
+ * and with its default quotas in the same commit (`devplatform/src/server.ts`), so there is
  * no state in which a project exists with nowhere to put a key or with an unmetered first request.
  */
 export interface Project {
@@ -258,7 +258,7 @@ export interface Project {
   readonly environments: readonly Environment[]
 }
 
-/** `devplatform/src/apikeys.ts:55-62`. */
+/** `devplatform/src/apikeys.ts`. */
 export interface ServiceAccount {
   readonly id: string
   readonly projectId: string
@@ -270,7 +270,7 @@ export interface ServiceAccount {
 
 /**
  * What a key looks like to everyone after the moment it is created —
- * `devplatform/src/apikeys.ts:137-156`.
+ * `devplatform/src/apikeys.ts`.
  *
  * **There is no `secret`, no `secretKey` and no `hash` field on this type, in the service or
  * here.** `display` is `cfk_<environment>_<lookup>` and is safe in a log, a list and a support
@@ -294,7 +294,7 @@ export interface ApiKeySummary {
   readonly revokedReason: string | null
 }
 
-/** One entry of the public scope vocabulary — `devplatform/src/scopes.ts:58-65`. */
+/** One entry of the public scope vocabulary — `devplatform/src/scopes.ts`. */
 export interface ScopeSpec {
   readonly name: string
   readonly service: string
@@ -302,7 +302,7 @@ export interface ScopeSpec {
   readonly description: string
 }
 
-/** `devplatform/src/webhooks.ts:60-69`. */
+/** `devplatform/src/webhooks.ts`. */
 export interface WebhookEndpoint {
   readonly id: string
   readonly projectId: string
@@ -314,7 +314,7 @@ export interface WebhookEndpoint {
   readonly createdAt: string
 }
 
-/** `devplatform/src/webhooks.ts:327-338`. */
+/** `devplatform/src/webhooks.ts`. */
 export interface Delivery {
   readonly id: string
   readonly endpointId: string
@@ -328,7 +328,7 @@ export interface Delivery {
   readonly nextAttemptAt: string
 }
 
-/** `devplatform/src/oauth.ts:56-65`. The secret is not on this type; see the header. */
+/** `devplatform/src/oauth.ts`. The secret is not on this type; see the header. */
 export interface OAuthClient {
   readonly id: string
   readonly projectId: string
@@ -340,11 +340,11 @@ export interface OAuthClient {
   readonly revokedAt: string | null
 }
 
-/** `devplatform/src/quotas.ts:47`. Four windows; `minute` is the burst control, `month` the plan. */
+/** `devplatform/src/quotas.ts`. Four windows; `minute` is the burst control, `month` the plan. */
 export const PERIODS = ['minute', 'hour', 'day', 'month'] as const
 export type Period = (typeof PERIODS)[number]
 
-/** `devplatform/src/quotas.ts:78-85`. */
+/** `devplatform/src/quotas.ts`. */
 export interface Quota {
   readonly id: string
   readonly projectId: string
@@ -354,7 +354,7 @@ export interface Quota {
   readonly maxUnits: number
 }
 
-/** One live window, as `currentUsage` renders it — `devplatform/src/quotas.ts:445`. */
+/** One live window, as `currentUsage` renders it — `devplatform/src/quotas.ts`. */
 export interface QuotaWindow {
   readonly period: Period
   readonly used: number
@@ -362,12 +362,12 @@ export interface QuotaWindow {
 }
 
 /**
- * An hourly usage bucket — `devplatform/src/quotas.ts:374-380`.
+ * An hourly usage bucket — `devplatform/src/quotas.ts`.
  *
  * `GET /v1/projects/:id/usage` reads `usage_rollups`, never the raw events
- * (`devplatform/src/quotas.ts:409-438`). Raw events are pruned at 35 days and the rollups at 400
- * (`devplatform/src/env.ts:183-184`), so a gap in this list at the older end is retention rather
- * than a quiet week — and `devplatform/src/env.ts:185-194` refuses a configuration that would let
+ * (`devplatform/src/quotas.ts`). Raw events are pruned at 35 days and the rollups at 400
+ * (`devplatform/src/env.ts`), so a gap in this list at the older end is retention rather
+ * than a quiet week — and `devplatform/src/env.ts` refuses a configuration that would let
  * a rollup expire before the events it summarises.
  */
 export interface UsageRollup {
@@ -379,18 +379,18 @@ export interface UsageRollup {
 }
 
 /**
- * `devplatform/src/applications.ts:41-47`. **Five now, not four.**
+ * `devplatform/src/applications.ts`. **Five now, not four.**
  *
  * `rejected` arrived with the operator route and is a status of its own rather than a reuse of
  * `delisted`, because the two are different facts: `delisted` is a listing that was public and was
  * taken down, `rejected` is one that never went up. `submitForReview` accepts `rejected` as a
- * source (`devplatform/src/applications.ts:80-87`), so one reviewer's "no" is not permanent and
+ * source (`devplatform/src/applications.ts`), so one reviewer's "no" is not permanent and
  * this app must render it as a state a developer can act on rather than as an ending.
  */
 export const APPLICATION_STATUSES = ['draft', 'in_review', 'listed', 'rejected', 'delisted'] as const
 export type ApplicationStatus = (typeof APPLICATION_STATUSES)[number]
 
-/** `devplatform/src/applications.ts:94-105`. */
+/** `devplatform/src/applications.ts`. */
 export interface Application {
   readonly id: string
   readonly projectId: string
@@ -407,18 +407,18 @@ export interface Application {
 /* ══════════════════════════════ the public calls ══════════════════════════════ */
 
 /**
- * `GET /v1/scopes` — `devplatform/src/server.ts:744`.
+ * `GET /v1/scopes` — `devplatform/src/server.ts`.
  *
- * **Makes no authentication call of any kind**, and `devplatform/src/server.ts:740-743` says why:
+ * **Makes no authentication call of any kind**, and `devplatform/src/server.ts` says why:
  * the vocabulary "is a property of the platform rather than of any customer, and a developer
  * choosing scopes before they have a key is exactly who needs it". Sent with `auth: false` — not
  * because a token would be refused, but because attaching one to a route that never asked for it
  * is how a client ends up reasoning about the wrong failure.
  *
  * `wildcard` is `null` and the `note` says there is no wildcard scope. Both are on the wire on
- * purpose (`:748-750`): "I'll just use the wildcard" is the first thing a developer tries, and a
- * wildcard is refused at issuance (`devplatform/src/scopes.ts:195-201`) AND by the database
- * (`devplatform/src/migrations.ts:210`).
+ * purpose: "I'll just use the wildcard" is the first thing a developer tries, and a
+ * wildcard is refused at issuance (`devplatform/src/scopes.ts`) AND by the database
+ * (`devplatform/src/migrations.ts`).
  */
 export interface ScopeVocabulary {
   readonly scopes: readonly ScopeSpec[]
@@ -431,12 +431,12 @@ export function getScopes(signal?: AbortSignal): Promise<ScopeVocabulary> {
 }
 
 /**
- * `GET /v1/apps` — `devplatform/src/server.ts:1297`.
+ * `GET /v1/apps` — `devplatform/src/server.ts`.
  *
  * **Public.** `listDirectory` filters to `status = 'listed'` INSIDE the query rather than at the
- * caller (`devplatform/src/applications.ts:323-326`), so a draft listing — including one written
+ * caller (`devplatform/src/applications.ts`), so a draft listing — including one written
  * to probe what the directory will render — cannot reach this response by a caller forgetting a
- * filter. `limit` is clamped to 500 (`:1299`).
+ * filter. `limit` is clamped to 500.
  */
 export function listDirectory(
   opts: { limit?: number; signal?: AbortSignal } = {},
@@ -449,10 +449,10 @@ export function listDirectory(
 }
 
 /**
- * `GET /v1/apps/:slug` — `devplatform/src/server.ts:1325`.
+ * `GET /v1/apps/:slug` — `devplatform/src/server.ts`.
  *
  * **Public**, and it answers 404 for anything not `listed`: `findListedApplication` carries the
- * status filter in its own query (`devplatform/src/applications.ts:303-309`). So a 404 here means
+ * status filter in its own query (`devplatform/src/applications.ts`). So a 404 here means
  * "there is no listed application at that slug" and never "you may not see it" — this app must not
  * render it as a permission failure.
  */
@@ -469,15 +469,15 @@ export function getApplicationBySlug(
 /* ══════════════════════════════ organisations ══════════════════════════════ */
 
 /**
- * `GET /v1/organisations` — `devplatform/src/server.ts:816`.
+ * `GET /v1/organisations` — `devplatform/src/server.ts`.
  *
  * ══════════════════════════════════════════════════════════════════════════════════════════════
  * **THE READ THAT CLOSES THIS FILE'S OWN FINDING: A MUTATION WAS BEING USED AS A QUERY.**
  *
  * Until `micro-devplatform@e13c154` the service served no route that resolved an identity
  * organisation to its developer-platform enrolment. `findOrgByIdentityId`
- * (`devplatform/src/orgs.ts:163`) existed and was reachable only from the event inbox
- * (`devplatform/src/server.ts:1557`), and `GET /v1/organisations/:id` wants the DEVELOPER id,
+ * (`devplatform/src/orgs.ts`) existed and was reachable only from the event inbox
+ * (`devplatform/src/server.ts`), and `GET /v1/organisations/:id` wants the DEVELOPER id,
  * which a console that has never enrolled has no way to learn. So this app asked "which
  * organisation am I in?" by re-POSTing the idempotent enrolment and reading what came back —
  * harmless, because `on conflict do nothing` really is idempotent, and still a write issued to ask
@@ -485,13 +485,13 @@ export function getApplicationBySlug(
  * ══════════════════════════════════════════════════════════════════════════════════════════════
  *
  * `user+member`: a user token, whose membership of the IDENTITY organisation is asked of identity
- * with the caller's own token BEFORE the row is read (`:825-826`). **It cannot enumerate** —
- * `identityOrgId` is required and a missing one is a 400 saying so (`:819-824`), and a non-member
+ * with the caller's own token BEFORE the row is read. **It cannot enumerate** —
+ * `identityOrgId` is required and a missing one is a 400 saying so, and a non-member
  * gets the same 404 identity itself gives, so this route is not an oracle for organisations
  * identity hides.
  *
  * **An empty list is not a 404 and the difference is the whole point.** A member of an organisation
- * that has never been enrolled gets `200 { organisations: [] }` (`:828`): "you are in this company
+ * that has never been enrolled gets `200 { organisations: [] }`: "you are in this company
  * and it has no developer platform presence yet" is an enrolment button, whereas a 404 is a dead
  * end. The screen renders the two differently for that reason.
  *
@@ -510,18 +510,18 @@ export function resolveOrganisation(
 }
 
 /**
- * `POST /v1/organisations` — `devplatform/src/server.ts:777`.
+ * `POST /v1/organisations` — `devplatform/src/server.ts`.
  *
  * Enrolment is idempotent on `identity_org_id` by construction — `on conflict do nothing` then
- * read (`devplatform/src/orgs.ts:127-142`) — which is why the route is exempt from the idempotency
- * wrapper (`devplatform/src/routeidempotency.test.ts:35-37`) and why this app sends no
+ * read (`devplatform/src/orgs.ts`) — which is why the route is exempt from the idempotency
+ * wrapper (`devplatform/src/routeidempotency.test.ts`) and why this app sends no
  * `Idempotency-Key` here. It is no longer used as a lookup: `resolveOrganisation` above is the read.
  *
  * **The caller must already be an owner or an admin of the identity organisation.** The role is
- * asked of identity per request with the user's own token forwarded (`:784-785`), so this is not a
+ * asked of identity per request with the user's own token forwarded, so this is not a
  * claim the browser makes. Without that check any authenticated user could enrol any organisation
- * id they could guess and become the owner of its developer platform presence — the comment at
- * `:781-783` says exactly that.
+ * id they could guess and become the owner of its developer platform presence — the comment
+ * above `authenticateUser`'s membership check says exactly that.
  *
  * `name` and `slug` are only used on the FIRST enrolment. A second call with a different name
  * returns the original row unchanged, because `do nothing` did nothing — so this screen must never
@@ -538,11 +538,11 @@ export function enrolOrganisation(input: EnrolInput): Promise<{ organisation: De
 }
 
 /**
- * `GET /v1/organisations/:id` — `devplatform/src/server.ts:831`.
+ * `GET /v1/organisations/:id` — `devplatform/src/server.ts`.
  *
- * `authoriseOrg(ctx, deps, id, 'read')` (`:833`), which is a USER token only (`:652`) and any of
- * the five organisation roles (`devplatform/src/membership.ts:56`). A caller with no role gets
- * **404, not 403** (`:655`) — the same answer as an id that does not exist, on purpose, so
+ * `authoriseOrg(ctx, deps, id, 'read')`, which is a USER token only and any of
+ * the five organisation roles (`devplatform/src/membership.ts`). A caller with no role gets
+ * **404, not 403** — the same answer as an id that does not exist, on purpose, so
  * developer organisation ids are not enumerable across customers. This app must therefore never
  * render a 404 here as "that organisation belongs to somebody else".
  */
@@ -555,7 +555,7 @@ export function getOrganisation(
   })
 }
 
-/** `GET /v1/organisations/:id/projects` — `devplatform/src/server.ts:839`. `org:read`, as above. */
+/** `GET /v1/organisations/:id/projects` — `devplatform/src/server.ts`. `org:read`, as above. */
 export function listProjects(
   orgId: string,
   signal?: AbortSignal,
@@ -567,14 +567,14 @@ export function listProjects(
 }
 
 /**
- * `POST /v1/projects` — `devplatform/src/server.ts:847`.
+ * `POST /v1/projects` — `devplatform/src/server.ts`.
  *
- * `authoriseOrg(ctx, deps, orgId, 'write')` (`:850`) — owner or admin only
- * (`devplatform/src/membership.ts:53`), and the organisation id comes from the BODY rather than the
- * path (`:849`).
+ * `authoriseOrg(ctx, deps, orgId, 'write')` — owner or admin only
+ * (`devplatform/src/membership.ts`), and the organisation id comes from the BODY rather than the
+ * path.
  *
  * **Wrapped, so an `Idempotency-Key` is required and a POST without one is a 400.** The project,
- * its two environments and its default quotas are one commit (`:859-864`): "a project that exists
+ * its two environments and its default quotas are one commit: "a project that exists
  * with no quota row is a project whose first request is unmetered".
  */
 export interface CreateProjectInput {
@@ -597,10 +597,10 @@ export function createProject(
 /* ══════════════════════════════ one project ══════════════════════════════ */
 
 /**
- * `GET /v1/projects/:id` — `devplatform/src/server.ts:870`.
+ * `GET /v1/projects/:id` — `devplatform/src/server.ts`.
  *
  * `authoriseProject(ctx, deps, id, 'read')`. A project the caller cannot see is **404 rather than
- * 403** (`:627-629`): "A 403 confirms the id exists, which makes project ids enumerable across
+ * 403**: "A 403 confirms the id exists, which makes project ids enumerable across
  * customers."
  */
 export function getProject(id: string, signal?: AbortSignal): Promise<{ project: Project }> {
@@ -610,12 +610,12 @@ export function getProject(id: string, signal?: AbortSignal): Promise<{ project:
 }
 
 /**
- * `POST /v1/projects/:id/service-accounts` — `devplatform/src/server.ts:882`.
+ * `POST /v1/projects/:id/service-accounts` — `devplatform/src/server.ts`.
  *
  * Not wrapped, and the reason is a constraint rather than a hope: `service_accounts_name_uniq`
  * makes `(project, name)` the natural key and `createServiceAccount` is `on conflict do nothing`
  * then read, so a retry returns the FIRST account rather than creating a second
- * (`devplatform/src/server.ts:877-881`). This client sends no `Idempotency-Key` here; the service
+ * (`devplatform/src/server.ts`). This client sends no `Idempotency-Key` here; the service
  * reads none on this route and would answer 400 for a header it does not want only if the wrapper
  * were present, which it is not.
  */
@@ -629,7 +629,7 @@ export function createServiceAccount(
   )
 }
 
-/** `GET /v1/projects/:id/service-accounts` — `devplatform/src/server.ts:893`. `project:read`. */
+/** `GET /v1/projects/:id/service-accounts` — `devplatform/src/server.ts`. `project:read`. */
 export function listServiceAccounts(
   projectId: string,
   signal?: AbortSignal,
@@ -643,36 +643,37 @@ export function listServiceAccounts(
 /* ══════════════════════════════ keys ══════════════════════════════ */
 
 /**
- * `POST /v1/projects/:id/keys` — `devplatform/src/server.ts:912`.
+ * `POST /v1/projects/:id/keys` — `devplatform/src/server.ts`.
  *
  * **The one route in this service that returns a usable credential**, and the one place in this
  * app where a secret is ever held in memory.
  *
  * `project:write`. Wrapped, so an `Idempotency-Key` is REQUIRED and the wrapper is load-bearing
- * rather than decorative — `devplatform/src/server.ts:903-907`: "a double-clicked 'Create key'
+ * rather than decorative — `devplatform/src/server.ts`: "a double-clicked 'Create key'
  * without it mints two credentials, and the second is one the developer never sees and therefore
  * never revokes — a live key with no owner."
  *
  * ── The three fields of the answer, and why each matters ──────────────────────────────────────
  *
  *   `key`        the `ApiKeySummary`. Always present.
- *   `secretKey`  the full `cfk_…` string, or **null on a replay** (`:951-958`). Null is a success:
+ *   `secretKey`  the full `cfk_…` string, or **null on a replay**. Null is a success:
  *                the work did not run because it had already run, and the secret was shown then.
  *   `note`       the service's own sentence, attached only when a secret was actually minted
- *                (`:959-963`): "This is the only time this secret is shown. It is stored under
+ *               : "This is the only time this secret is shown. It is stored under
  *                scrypt and cannot be recovered." It is rendered VERBATIM rather than paraphrased.
- *   `replayed`   `true` when the stored response was returned (`:1661`).
+ *   `replayed`   `true` when the stored response was returned.
  *
  * ── What the request may carry ────────────────────────────────────────────────────────────────
  *
- * `environment` must be `live` or `test` (`:915`, `devplatform/src/keys.ts:137`). `scopes` is an
+ * `environment` must be `live` or `test` (`devplatform/src/server.ts`, `devplatform/src/keys.ts`).
+ * `scopes` is an
  * array of strings and is REFUSED rather than filtered if any is unknown
- * (`devplatform/src/scopes.ts:195-201`) — a caller told "created" for a key missing an authority it
+ * (`devplatform/src/scopes.ts`) — a caller told "created" for a key missing an authority it
  * asked for would discover otherwise at the worst possible moment. An EMPTY scope array is legal
- * and produces a completely inert credential (`devplatform/src/scopes.ts:12-16`), which is worth
+ * and produces a completely inert credential (`devplatform/src/scopes.ts`), which is worth
  * offering: it is provable that a key can exist and grant nothing.
  *
- * The idempotency fingerprint is `{projectId, environment, scopes, name}` (`:924`), so changing the
+ * The idempotency fingerprint is `{projectId, environment, scopes, name}`, so changing the
  * name and retrying with the SAME key is a 409 `idempotency_key_reuse` rather than a second key.
  * See src/lib/idempotency.ts for when the key is kept and when it is thrown away.
  */
@@ -681,7 +682,7 @@ export interface IssueKeyInput {
   readonly scopes: readonly string[]
   readonly name?: string
   readonly serviceAccountId?: string | null
-  /** ISO 8601. `devplatform/src/server.ts:935` parses it and 400s on anything else. */
+  /** ISO 8601. `devplatform/src/server.ts` parses it and 400s on anything else. */
   readonly expiresAt?: string | null
 }
 
@@ -703,10 +704,10 @@ export function issueKey(projectId: string, input: IssueKeyInput, key: string): 
 }
 
 /**
- * `GET /v1/projects/:id/keys` — `devplatform/src/server.ts:968`.
+ * `GET /v1/projects/:id/keys` — `devplatform/src/server.ts`.
  *
  * `project:read`. Revoked keys are EXCLUDED unless `includeRevoked=true`, and only the exact
- * string `'true'` turns it on (`:970`). A revoked key is kept for ever rather than deleted — the
+ * string `'true'` turns it on. A revoked key is kept for ever rather than deleted — the
  * row is the record that a credential existed — so this app offers the toggle instead of hiding
  * the history.
  */
@@ -724,18 +725,18 @@ export function listKeys(
 }
 
 /**
- * `DELETE /v1/keys/:id` — `devplatform/src/server.ts:990`.
+ * `DELETE /v1/keys/:id` — `devplatform/src/server.ts`.
  *
- * `project:write`, resolved from the KEY's own project row rather than from the request (`:994`).
+ * `project:write`, resolved from the KEY's own project row rather than from the request.
  *
  * Idempotent by definition and by claim: `revokeApiKey` updates `where revoked_at is null`, so a
- * second call preserves the first call's time and reason and emits no second event (`:983-986`).
+ * second call preserves the first call's time and reason and emits no second event.
  * The answer says which happened — `alreadyRevoked` — and this app renders the difference rather
  * than reporting both as "done".
  *
- * `reason` is a QUERY parameter, not a body field (`:995`). Revocation is immediate here; the
- * edge is where it becomes immediate for a caller, and `11-data-and-contract-strategy.md:363`
- * records a 30-second validation cache there (`:987-988`). This app says that number rather than
+ * `reason` is a QUERY parameter, not a body field. Revocation is immediate here; the
+ * edge is where it becomes immediate for a caller, and `11-data-and-contract-strategy.md`
+ * records a 30-second validation cache there. This app says that number rather than
  * implying the key stops working in the same instant everywhere.
  */
 export function revokeKey(
@@ -751,14 +752,14 @@ export function revokeKey(
 /* ══════════════════════════════ quotas and usage ══════════════════════════════ */
 
 /**
- * `GET /v1/projects/:id/quotas` — `devplatform/src/server.ts:1097`.
+ * `GET /v1/projects/:id/quotas` — `devplatform/src/server.ts`.
  *
  * `project:read`. The answer is two things: the configured `quotas` rows, and `current` — the LIVE
- * window state per environment NAME (`:1100-1103`), each entry a list of `{period, used, limit}`.
+ * window state per environment NAME, each entry a list of `{period, used, limit}`.
  *
  * The counter behind `used` is a Postgres row, not a process variable, and
  * `quota_windows_within_limit` makes exceeding it a constraint violation rather than a race that
- * usually does not happen (`devplatform/src/migrations.ts:29-35`). So this number is the estate's
+ * usually does not happen (`devplatform/src/migrations.ts`). So this number is the estate's
  * and not one replica's, and the screen may state it as a fact.
  */
 export interface QuotaReport {
@@ -774,10 +775,10 @@ export function getQuotas(projectId: string, signal?: AbortSignal): Promise<Quot
 }
 
 /**
- * `GET /v1/projects/:id/usage` — `devplatform/src/server.ts:1107`.
+ * `GET /v1/projects/:id/usage` — `devplatform/src/server.ts`.
  *
- * `project:read`. `limit` defaults to 200 and is clamped to 1000 (`:1110`), and the window defaults
- * to the last seven days inside the query (`devplatform/src/quotas.ts:415`) — this route takes no
+ * `project:read`. `limit` defaults to 200 and is clamped to 1000, and the window defaults
+ * to the last seven days inside the query (`devplatform/src/quotas.ts`) — this route takes no
  * `since` parameter, so a screen cannot ask for more history than that. Said out loud, because an
  * empty list here means "nothing in seven days", not "no usage ever".
  */
@@ -795,7 +796,7 @@ export function listUsage(
 }
 
 /**
- * `PUT /v1/projects/:id/quotas` — `devplatform/src/server.ts:1045`. **Lowering only.**
+ * `PUT /v1/projects/:id/quotas` — `devplatform/src/server.ts`. **Lowering only.**
  *
  * ══════════════════════════════════════════════════════════════════════════════════════════════
  * THIS FILE DECLINED THIS ROUTE, AND THE REASON IT GAVE NO LONGER HOLDS.
@@ -805,13 +806,13 @@ export function listUsage(
  * and `micro-devplatform@e13c154` fixed it — worse than reported, because any API KEY in the
  * project carrying `devplatform:write` could do it too.
  *
- * **The direction is now the authority** (`:1024-1037`, `:1072-1086`):
+ * **The direction is now the authority**:
  *
  *   LOWER or HOLD   `project:write`. A retry writing the same value is permitted deliberately —
  *                   PUT is idempotent by natural key and a 403 on the second attempt would make
  *                   the route's idempotency exemption a lie.
  *   RAISE           an operator, and a browser cannot be one. `devplatform:admin` is absent from
- *                   `devplatform/src/scopes.ts:5-19`, so no key can hold it.
+ *                   `devplatform/src/scopes.ts`, so no key can hold it.
  *   CREATE          an operator, because a MISSING row is UNLIMITED rather than zero: `quotasFor`
  *                   returns nothing and `consumeAll` over an empty list allows everything. Writing
  *                   a finite value where there was no row is a reduction only in appearance.
@@ -833,7 +834,7 @@ export function listUsage(
  * trusting this one.
  * ══════════════════════════════════════════════════════════════════════════════════════════════
  *
- * The reply carries `ceiling` — `MAX_UNITS_CEILING[period]` (`:1094`), the schema's own bound from
+ * The reply carries `ceiling` — `MAX_UNITS_CEILING[period]`, the schema's own bound from
  * `quotas_max_within_ceiling` — so a screen can print the number the service would refuse above
  * rather than paraphrasing it.
  */
@@ -877,21 +878,21 @@ export function lowerQuota(
 /* ══════════════════════════════ webhooks ══════════════════════════════ */
 
 /**
- * `POST /v1/projects/:id/webhook-endpoints` — `devplatform/src/server.ts:1117`.
+ * `POST /v1/projects/:id/webhook-endpoints` — `devplatform/src/server.ts`.
  *
  * `project:write`. **Wrapped, so an `Idempotency-Key` is required.** Returns `secret` — shown once,
- * `null` on a replay (`:1145`).
+ * `null` on a replay.
  *
  * The service refuses more than this app could usefully validate, and each refusal is worth
  * surfacing verbatim rather than pre-empting with a guess:
  *
- *   * **https only, and no loopback or link-local** (`devplatform/src/webhooks.ts:107-137`). A
+ *   * **https only, and no loopback or link-local** (`devplatform/src/webhooks.ts`). A
  *     subscriber URL is a destination this service dials from inside the application network, so
  *     an unchecked one is a server-side request forgery primitive — a customer registering
  *     `https://169.254.169.254/…` would have the instance metadata endpoint fetched for them.
- *   * **At least one topic, and no wildcard topic** (`devplatform/src/webhooks.ts:158-166`): "an
+ *   * **At least one topic, and no wildcard topic** (`devplatform/src/webhooks.ts`): "an
  *     endpoint that receives everything by default is an endpoint nobody meant to subscribe".
- *   * **One endpoint per `(environment, url)`** (`devplatform/src/webhooks.ts:173-181`).
+ *   * **One endpoint per `(environment, url)`** (`devplatform/src/webhooks.ts`).
  */
 export interface CreateEndpointInput {
   readonly environment: KeyEnvironment
@@ -919,7 +920,7 @@ export function createEndpoint(
   })
 }
 
-/** `GET /v1/projects/:id/webhook-endpoints` — `devplatform/src/server.ts:1148`. `project:read`. */
+/** `GET /v1/projects/:id/webhook-endpoints` — `devplatform/src/server.ts`. `project:read`. */
 export function listEndpoints(
   projectId: string,
   signal?: AbortSignal,
@@ -931,14 +932,15 @@ export function listEndpoints(
 }
 
 /**
- * `POST /v1/webhook-endpoints/:id/rotate-secret` — `devplatform/src/server.ts:1157`.
+ * `POST /v1/webhook-endpoints/:id/rotate-secret` — `devplatform/src/server.ts`.
  *
- * `project:write`, resolved from the ENDPOINT's own project row (`:1161`). **Wrapped**, and the
- * reason is stated at `:1153-1155`: a retry without it "mints a second secret and retires the one the
+ * `project:write`, resolved from the ENDPOINT's own project row. **Wrapped**, and the
+ * reason is stated in the handler's own comment: a retry without it "mints a second secret and
+ * retires the one the
  * customer has just been shown but has not yet deployed".
  *
  * The answer carries `overlapMinutes` — how long the OLD secret keeps verifying
- * (`devplatform/src/env.ts:163-164`, default 1440). This app prints that number, because a rotation
+ * (`devplatform/src/env.ts`, default 1440). This app prints that number, because a rotation
  * screen that does not say when the old secret dies is a rotation screen that causes an outage.
  */
 export interface RotatedSecret {
@@ -957,12 +959,12 @@ export function rotateEndpointSecret(id: string, key: string): Promise<RotatedSe
 }
 
 /**
- * `POST /v1/webhook-endpoints/:id/disable` — `devplatform/src/server.ts:1188`.
+ * `POST /v1/webhook-endpoints/:id/disable` — `devplatform/src/server.ts`.
  *
  * `project:write`. Not wrapped, and it does not need to be: it is a state transition writing a
- * fixed value, so the second attempt writes the same value (`:1193-1194`). The handler passes
- * `true` unconditionally (`:1195`) and `enableEndpoint` below passes `false` (`:1219`) — **two
- * verbs, never one boolean**, and the service says why (`:1201-1204`): "a client that inverted the
+ * fixed value, so the second attempt writes the same value. The handler passes
+ * `true` unconditionally and `enableEndpoint` below passes `false` — **two
+ * verbs, never one boolean**, and the service says why: "a client that inverted the
  * flag would silently do the opposite of what its operator intended". So this app draws two
  * buttons, and never a switch.
  */
@@ -974,7 +976,7 @@ export function disableEndpoint(id: string): Promise<{ endpoint: WebhookEndpoint
 }
 
 /**
- * `POST /v1/webhook-endpoints/:id/enable` — `devplatform/src/server.ts:1212`.
+ * `POST /v1/webhook-endpoints/:id/enable` — `devplatform/src/server.ts`.
  *
  * ══════════════════════════════════════════════════════════════════════════════════════════════
  * **THE INVERSE THIS FILE REPORTED MISSING, AND WHY IT MATTERS SO MUCH.**
@@ -985,12 +987,12 @@ export function disableEndpoint(id: string): Promise<{ endpoint: WebhookEndpoint
  * which is exactly the hour in which "you must now rotate your webhook secret" is the worst
  * available answer. It is a route now, and the screen offers it.
  *
- * `project:write`, resolved from the ENDPOINT's own project row (`:1216`). Not wrapped, for the
+ * `project:write`, resolved from the ENDPOINT's own project row. Not wrapped, for the
  * same reason as `/disable`: a fixed value written twice is the same row.
  *
  * **Deliveries enqueued while it was disabled are NOT replayed**, and the service states it
  * because the opposite is the reasonable assumption: `enqueueDeliveries` selects
- * `where e.disabled_at is null` (`devplatform/src/webhooks.ts:381`), so nothing was ever queued.
+ * `where e.disabled_at is null` (`devplatform/src/webhooks.ts`), so nothing was ever queued.
  * An operator who expected a flood on re-enabling would wait for one that never comes, and this
  * app says so on the screen rather than leaving it to be discovered.
  * ══════════════════════════════════════════════════════════════════════════════════════════════
@@ -1002,7 +1004,7 @@ export function enableEndpoint(id: string): Promise<{ endpoint: WebhookEndpoint 
   )
 }
 
-/** `DELETE /v1/webhook-endpoints/:id` — `devplatform/src/server.ts:1222`. `project:write`. */
+/** `DELETE /v1/webhook-endpoints/:id` — `devplatform/src/server.ts`. `project:write`. */
 export function deleteEndpoint(id: string): Promise<{ deleted: boolean }> {
   return api<{ deleted: boolean }>(`/v1/webhook-endpoints/${encodeURIComponent(assertUuid(id, 'endpoint id'))}`, {
     method: 'DELETE',
@@ -1010,13 +1012,13 @@ export function deleteEndpoint(id: string): Promise<{ deleted: boolean }> {
 }
 
 /**
- * `GET /v1/webhook-endpoints/:id/deliveries` — `devplatform/src/server.ts:1231`.
+ * `GET /v1/webhook-endpoints/:id/deliveries` — `devplatform/src/server.ts`.
  *
- * `project:read`. The newest 50 (`devplatform/src/webhooks.ts:537-540`). A row with
+ * `project:read`. The newest 50 (`devplatform/src/webhooks.ts`). A row with
  * `deliveredAt: null` and a climbing `attempts` is a delivery still being retried; one past the
  * attempt ceiling is ABANDONED and is retained rather than deleted, "because the row is the only
  * record that a customer was sent an event and never took it"
- * (`devplatform/src/server.ts:290-295`). This screen must therefore never present an old
+ * (`devplatform/src/server.ts`). This screen must therefore never present an old
  * undelivered row as merely pending.
  */
 export function listDeliveries(
@@ -1032,16 +1034,16 @@ export function listDeliveries(
 /* ══════════════════════════════ oauth clients ══════════════════════════════ */
 
 /**
- * `POST /v1/projects/:id/oauth-clients` — `devplatform/src/server.ts:1241`.
+ * `POST /v1/projects/:id/oauth-clients` — `devplatform/src/server.ts`.
  *
  * `project:write`. **Wrapped, so an `Idempotency-Key` is required.** Returns `clientSecret` — shown
- * once, `null` on a replay (`:1275`). There is no column it could be read back from: the secret is
+ * once, `null` on a replay. There is no column it could be read back from: the secret is
  * hashed exactly as an API key's is, under the same `oauth_clients_slow_kdf_only` constraint
- * (`devplatform/src/migrations.ts:244`).
+ * (`devplatform/src/migrations.ts`).
  *
  * **Every redirect URI must be absolute https, or http on loopback for development, with no
- * fragment and no wildcard** (`devplatform/src/oauth.ts:102-116`), and the schema says the same
- * thing in a CHECK (`devplatform/src/migrations.ts:251-255`). The comment there names the stake:
+ * fragment and no wildcard** (`devplatform/src/oauth.ts`), and the schema says the same
+ * thing in a CHECK (`devplatform/src/migrations.ts`). The comment there names the stake:
  * a wildcard or relative redirect "is an open redirect that hands an authorisation code to whoever
  * asked for it, and it is the single most exploited misconfiguration in OAuth deployments".
  */
@@ -1070,7 +1072,7 @@ export function registerClient(
   })
 }
 
-/** `GET /v1/projects/:id/oauth-clients` — `devplatform/src/server.ts:1278`. `project:read`. */
+/** `GET /v1/projects/:id/oauth-clients` — `devplatform/src/server.ts`. `project:read`. */
 export function listClients(
   projectId: string,
   signal?: AbortSignal,
@@ -1082,10 +1084,10 @@ export function listClients(
 }
 
 /**
- * `DELETE /v1/oauth-clients/:id` — `devplatform/src/server.ts:1283`.
+ * `DELETE /v1/oauth-clients/:id` — `devplatform/src/server.ts`.
  *
- * `project:write`, resolved from the client's own `project_id` (`:1285-1290`). `revokeClient` uses
- * `coalesce(revoked_at, now())` (`devplatform/src/routeidempotency.test.ts:63-64`), so a second
+ * `project:write`, resolved from the client's own `project_id`. `revokeClient` uses
+ * `coalesce(revoked_at, now())` (`devplatform/src/routeidempotency.test.ts`), so a second
  * call preserves the first revocation's time. The row survives revocation, which is why the list
  * above returns `revokedAt` rather than dropping it.
  */
@@ -1098,13 +1100,13 @@ export function revokeClient(id: string): Promise<{ client: OAuthClient }> {
 /* ══════════════════════════════ the directory listing ══════════════════════════════ */
 
 /**
- * `PUT /v1/projects/:id/application` — `devplatform/src/server.ts:1332`.
+ * `PUT /v1/projects/:id/application` — `devplatform/src/server.ts`.
  *
  * `project:write`. An upsert on `project_id` — one listing per project — so a retry updates rather
- * than conflicts, which is why it is exempt from the wrapper (`:1331`).
+ * than conflicts, which is why it is exempt from the wrapper.
  *
  * **Editing a LISTED application does not un-list it and does not send it back for review**, and
- * `devplatform/src/applications.ts:160-165` states that as a deliberate, arguable choice: "re-review
+ * `devplatform/src/applications.ts` states that as a deliberate, arguable choice: "re-review
  * on every copy change would mean a typo fix takes a human, and the practical consequence of that
  * is developers who never fix typos." This screen says so, because a developer who believes an
  * edit will re-trigger review will not make one.
@@ -1128,9 +1130,9 @@ export function upsertApplication(
 }
 
 /**
- * `GET /v1/projects/:id/application` — `devplatform/src/server.ts:1346`.
+ * `GET /v1/projects/:id/application` — `devplatform/src/server.ts`.
  *
- * `project:read`. **404 is the normal answer for a project that has never written one** (`:1349`),
+ * `project:read`. **404 is the normal answer for a project that has never written one**,
  * so this app renders that 404 as an invitation rather than as a failure. It is the one place in
  * this client where a 404 is an expected outcome of a correct request.
  */
@@ -1145,22 +1147,22 @@ export function getApplication(
 }
 
 /**
- * `POST /v1/projects/:id/application/submit` — `devplatform/src/server.ts:1354`.
+ * `POST /v1/projects/:id/application/submit` — `devplatform/src/server.ts`.
  *
  * `project:write`. A state transition claimed with `where status in (…)`, so the second attempt
- * matches no row (`:1353`) — which is why it needs no wrapper and why a double click cannot
+ * matches no row — which is why it needs no wrapper and why a double click cannot
  * produce two reviews.
  *
  * **The reviewer's side now exists**, and this file's `REVIEW_GAP` is closed.
- * `setApplicationStatus` (`devplatform/src/applications.ts:238`) was imported by the server
- * (`devplatform/src/server.ts:178`) and called by no route, so a listing could be submitted and
- * never approved. `PUT /v1/projects/:id/application/status` (`:1378`) is the route that completes
- * it and `GET /v1/apps/pending` (`:1317`) is the queue that makes a submission findable. Both are
+ * `setApplicationStatus` (`devplatform/src/applications.ts`) was imported by the server
+ * (`devplatform/src/server.ts`) and called by no route, so a listing could be submitted and
+ * never approved. `PUT /v1/projects/:id/application/status` is the route that completes
+ * it and `GET /v1/apps/pending` is the queue that makes a submission findable. Both are
  * operator routes and both are DECLINED above: a console for the submitting party must not hold
  * the approving control.
  *
  * So a submission now waits for a person rather than for a route, and this screen says which.
- * `submitForReview` also accepts `rejected` as a source (`devplatform/src/applications.ts:80-87`),
+ * `submitForReview` also accepts `rejected` as a source (`devplatform/src/applications.ts`),
  * so a rejected listing can be edited and sent back — the developer is not at a dead end.
  */
 export function submitApplication(projectId: string): Promise<{ application: Application }> {
@@ -1178,32 +1180,35 @@ export interface KnownGap {
   readonly title: string
   /** What is true today. Written as a finding, never as "coming soon". */
   readonly finding: string
-  /** The lines somebody can check it against. */
+  /** The files somebody can check it against. Never a line: it is another repository's to move. */
   readonly citations: readonly string[]
   /** What would close it. Concrete enough to act on. */
   readonly closes: string
 }
 
-export const GATEWAY_GAP: KnownGap = {
-  id: 'gateway-routes-nothing',
-  title: 'The public API gateway routes none of this service',
-  finding:
-    'deploy/gateway/dynamic/public-api.yml registers routers for pricing, activity, foresight, ' +
-    'identity, wallet, market, mint and worlds, and for nothing else. None of organisations, ' +
-    'projects, keys, webhook-endpoints, oauth-clients, quotas, usage, apps or scopes appears in ' +
-    'any rule, so every devplatform path on api.<apex> falls to the catch-all and is blackholed ' +
-    'to an unreachable upstream. A key issued here works against no public host today.',
-  citations: [
-    'deploy/gateway/dynamic/public-api.yml:79',
-    'deploy/gateway/dynamic/public-api.yml:164',
-    'deploy/gateway/dynamic/public-api.yml:206',
-    'devplatform/src/server.ts:8',
-  ],
-  closes:
-    'A cf-api-devplatform router matching the eight resources devplatform serves, forwarded ' +
-    'unchanged — it serves /v1 natively, so it takes no strip-prefix middleware — and a compose ' +
-    'block for the service, which deploy/compose/docker-compose.slice.yml also does not have.',
-}
+/**
+ * ══════════════════════════════════════════════════════════════════════════════════════════════
+ * `GATEWAY_GAP` WAS HERE, AND IT IS CLOSED. IT IS NOT KEPT AS A CLOSED ENTRY.
+ *
+ * It said: "the public API gateway registers routers for pricing, activity, foresight, identity,
+ * wallet, market, mint and worlds, and for nothing else — so a key issued here works against no
+ * public host." Both halves of what it asked for now exist. `deploy/gateway/dynamic/public-api.yml`
+ * declares `cf-api-devplatform`, matching `/v1/apps`, `/v1/keys`, `/v1/oauth-clients`,
+ * `/v1/organisations`, `/v1/projects`, `/v1/scopes` and `/v1/webhook-endpoints` — quotas and usage
+ * are under `/v1/projects` — forwarded unchanged to `http://devplatform:4000`, and the blackhole
+ * catch-all it described has been deleted outright. `deploy/compose/docker-compose.estate.yml`
+ * declares the `devplatform` service and its migration job.
+ *
+ * IT WENT ON BEING RENDERED AS A WARNING FOR AS LONG AS IT TOOK SOMEBODY TO OPEN THE FILE. The only
+ * thing that would ever have caught it was its own citation — and the citation named a
+ * `docker-compose.slice.yml` under `deploy/compose`, which micro-deploy has since deleted. It is
+ * not written as a path here on purpose: a citation to a file that does not exist is what this
+ * sentence is about, and writing one would make the sentence fail its own rule.
+ * The sweep that should have said so only looked at citations carrying a LINE NUMBER, so a citation
+ * to a deleted file was the one shape it could not see. `test/citations.test.ts` now checks every
+ * cited FILE and forbids the line, which is the pair of changes that surfaced this.
+ * ══════════════════════════════════════════════════════════════════════════════════════════════
+ */
 
 export const SDK_GAP: KnownGap = {
   id: 'sdk-has-no-devplatform',
@@ -1214,14 +1219,15 @@ export const SDK_GAP: KnownGap = {
     'one — no issue, no list, no revoke, no introspection. Both still say in their own source ' +
     'that devplatform does not exist. It does.',
   citations: [
-    'sdk/packages/sdk/src/credentials.ts:7',
-    'sdk/packages/cli/src/run.ts:518',
-    'devplatform/src/server.ts:744',
+    'sdk/packages/sdk/src/credentials.ts',
+    'sdk/packages/cli/src/run.ts',
+    'devplatform/src/server.ts',
   ],
   closes:
-    'devplatform’s /v1 routes are added to the SDK’s verified route table and to openapi.json, ' +
-    'after the gateway routes them — an SDK entry for a path the gateway blackholes would be a ' +
-    'second imagined surface.',
+    'devplatform’s /v1 routes are added to the SDK’s verified route table and to openapi.json. ' +
+    'The condition this used to wait on — that the gateway route them first, so an SDK entry could ' +
+    'not name a path the gateway blackholes — is met: cf-api-devplatform forwards the seven ' +
+    'prefixes, and there is no blackhole catch-all left to fall into.',
 }
 
 /**
@@ -1249,11 +1255,10 @@ export const MALFORMED_ID_GAP: KnownGap = {
     'and says so at requireUuid: changing the status code of every shipped route is a separate ' +
     'decision from the four this commit made. This console never sends one, because its own ' +
     'addresses are those ids and a mistyped one must not read as an outage.',
-  citations: [
-    'devplatform/src/server.ts:1680-1684',
-    'devplatform/src/server.ts:870',
-    'devplatform/src/server.ts:1693-1696',
-  ],
+  // ONE CITATION, NOT THREE. This was three line numbers in one file, and collapsing them to the
+  // file left three identical strings — which is what a line number is worth once the file is the
+  // unit: the same claim, repeated. The symbols are named in the finding instead.
+  citations: ['devplatform/src/server.ts'],
   closes:
     'requireUuid on every route that takes an :id, so the answer is 400 with the segment named. ' +
     'It is a status-code change on shipped routes, which is why it is reported rather than ' +
@@ -1261,4 +1266,4 @@ export const MALFORMED_ID_GAP: KnownGap = {
     'retry, and that is a decision for the service and its callers together.',
 }
 
-export const KNOWN_GAPS: readonly KnownGap[] = [GATEWAY_GAP, SDK_GAP, MALFORMED_ID_GAP]
+export const KNOWN_GAPS: readonly KnownGap[] = [SDK_GAP, MALFORMED_ID_GAP]

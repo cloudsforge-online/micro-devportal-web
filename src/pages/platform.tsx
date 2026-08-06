@@ -1,12 +1,12 @@
 /**
  * The index: what a credential on this platform can be, before anybody has one.
  *
- * PUBLIC, because `GET /v1/scopes` is (`devplatform/src/server.ts:744`). The person this page is
+ * PUBLIC, because `GET /v1/scopes` is (`devplatform/src/server.ts`). The person this page is
  * written for has not signed in and is deciding whether to.
  *
  * It renders the scope vocabulary as a table rather than as prose, because the vocabulary IS the
  * product's authority model: exact match, no wildcard, no hierarchy, and an empty set that grants
- * nothing (`devplatform/src/scopes.ts:5-19`). A page that summarised it would be a second, prettier
+ * nothing (`devplatform/src/scopes.ts`). A page that summarised it would be a second, prettier
  * copy that drifts.
  */
 import { Link } from 'react-router-dom'
@@ -46,7 +46,7 @@ export function PlatformPage() {
       <p className="dp-para">
         Named by service and action rather than by URL — <code className="cf-num">market:write</code>{' '}
         is a fact about authority and survives any change to where the public API is mounted
-        (<code className="cf-num">devplatform/src/scopes.ts:69-72</code>).{' '}
+        (<code className="cf-num">devplatform/src/scopes.ts</code>).{' '}
         <strong>There is no wildcard scope.</strong> Name every scope a key needs: an unknown one is
         refused at issuance rather than filtered out, so a key never quietly carries less authority
         than you asked for. A key with no scopes at all is legal, and it can do nothing.

@@ -7,8 +7,8 @@
  *
  * ── This surface's entitled set, read before anything was assumed ─────────────────────────────
  *
- * `brand/README.md:41` gives `developers` **mark, favicon, wordmark, og — seven files**, and
- * `brand/README.md:64-65` records the one deliberate absence: no social banner, because "a
+ * `brand/README.md` gives `developers` **mark, favicon, wordmark, og — seven files**, and
+ * `brand/README.md` records the one deliberate absence: no social banner, because "a
  * repository social preview is a separate question nobody has asked". The og card IS entitled and
  * IS shipped, because "devportal-web is public and its links get shared".
  *

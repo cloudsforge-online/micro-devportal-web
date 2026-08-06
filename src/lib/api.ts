@@ -105,10 +105,10 @@ export class ApiError extends Error {
  * Pull the sentence, the code and the request id out of a service's error body.
  *
  * The estate's envelope is **nested** — `{error: {code, message, requestId}}`, built by
- * `errorReply()` in every service (`hub-api/src/server.ts:589`, `errorReply` in
- * `identity/src/server.ts`, `service-template/src/server.ts:341`). The identity citation said
- * `:1431`, which is now a sentence in a doc comment about service credentials — a line that
- * exists and says nothing about the claim. That file's line numbers move daily; the others do not. This function used to read it as flat, assigning
+ * `errorReply()` in every service (`hub-api/src/server.ts`, `errorReply` in
+ * `identity/src/server.ts`, `service-template/src/server.ts`). The identity citation used to name
+ * a line, and that line is now a sentence in a doc comment about service credentials — it exists
+ * and says nothing about the claim. This function used to read the envelope as flat, assigning
  * `data.error` — an object — straight to the displayed message. Every server-side failure in
  * every app cut from this template would have rendered as `[object Object]`, with the real
  * message, the code and the request id all present in the response and all discarded. The
@@ -259,9 +259,9 @@ export interface RequestOptions {
    *
    * **Five routes on `devplatform` require one, and eleven other mutations do not.**
    * `withIdempotentRoute` throws a `BadRequestError` when the header is missing or outside 8–200
-   * characters (`devplatform/src/server.ts:1637-1642`), so a POST without it is a **400**. The
+   * characters (`devplatform/src/server.ts`), so a POST without it is a **400**. The
    * eleven exempt mutations each name the mechanism that makes them safe without a wrapper, in
-   * `devplatform/src/routeidempotency.test.ts:34-68`, and sending a header they never read would
+   * `devplatform/src/routeidempotency.test.ts`, and sending a header they never read would
    * be this client inventing a contract. Which is which is decided once, in src/lib/idempotency.ts.
    *
    * `authorization` and `content-type` are set by this function AFTER these are spread, so a
