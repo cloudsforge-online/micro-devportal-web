@@ -33,18 +33,18 @@ export function ProjectShell() {
   const project = useResource(
     (signal) => getProject(id, signal),
     () => 1,
-    'That project could not be loaded.',
+    'The project did not come back from the service.',
     [id],
   )
 
   return (
     <section className="dp-page">
-      {project.state === 'loading' && <Loading label="Reading the project" />}
+      {project.state === 'loading' && <Loading label="Fetching the project" />}
       {(project.state === 'failed' || project.state === 'forbidden') && project.error && (
         <Failed
           notice={project.error}
           onRetry={project.reload}
-          title="No project at this address"
+          title="This address holds no project you can open"
         />
       )}
       {project.state === 'ok' && project.data && (
@@ -52,8 +52,8 @@ export function ProjectShell() {
           <header className="dp-page__head">
             <h1 className="dp-page__title">{project.data.project.name}</h1>
             <p className="dp-page__lead">
-              <Identifier value={project.data.project.slug} /> · {project.data.project.status} ·
-              created {when(project.data.project.createdAt)}
+              <Identifier value={project.data.project.slug} /> · {project.data.project.status} · in
+              existence since {when(project.data.project.createdAt)}
             </p>
           </header>
           <nav className="dp-sections" aria-label="Project sections">
@@ -91,13 +91,13 @@ export function ProjectOverviewPage() {
   const project = useResource(
     (signal) => getProject(id, signal),
     () => 1,
-    'That project could not be loaded.',
+    'The project did not come back from the service.',
     [id],
   )
   const accounts = useResource(
     (signal) => listServiceAccounts(id, signal),
     (data) => data.serviceAccounts.length,
-    'The service accounts could not be loaded.',
+    'The service account list did not come back.',
     [id],
   )
 
@@ -114,25 +114,25 @@ export function ProjectOverviewPage() {
         </dl>
       )}
       <Note>
-        A <code className="cf-num">test</code> key and a <code className="cf-num">live</code> key are
-        different credentials with different quotas and different webhook endpoints. Nothing crosses
-        between them.
+        The two environments share nothing. A <code className="cf-num">test</code> credential and a{' '}
+        <code className="cf-num">live</code> one are separate keys, counted against separate limits,
+        delivering to separate webhook endpoints. Traffic in one is invisible to the other.
       </Note>
 
       <h2 className="dp-h2">Service accounts</h2>
       <p className="dp-para">
-        A machine identity inside this project. A key may be attached to one, which is how a fleet
-        of keys is grouped and rotated together. A service account is not itself a credential and
-        cannot authenticate.
+        Think of one as a name for a running thing — a worker, a cron job, a deployment. Keys can be
+        attached to it, which is how you rotate a whole fleet of credentials as a unit. On its own a
+        service account authenticates nothing; it holds no secret.
       </p>
-      {accounts.state === 'loading' && <Loading label="Reading the service accounts" />}
+      {accounts.state === 'loading' && <Loading label="Fetching the service accounts" />}
       {(accounts.state === 'failed' || accounts.state === 'forbidden') && accounts.error && (
         <Failed notice={accounts.error} onRetry={accounts.reload} />
       )}
       {accounts.state === 'empty' && (
         <Empty
-          title="No service accounts"
-          hint="Keys can be issued without one. Add one when several keys belong to the same running thing."
+          title="Nothing has been named here"
+          hint="Service accounts are optional and this project has none — keys work perfectly well without one. Add one once two or more credentials start belonging to the same deployment."
         />
       )}
       {accounts.state === 'ok' && accounts.data && (
@@ -189,7 +189,7 @@ function NewServiceAccount({
   const [description, setDescription] = useState('')
   const create = useMutation(
     () => createServiceAccount(projectId, { name, description }),
-    'The service account could not be created.',
+    'The platform declined to add the service account.',
   )
 
   return (
@@ -228,7 +228,9 @@ function NewServiceAccount({
           {create.busy ? 'Adding…' : 'Add service account'}
         </button>
       </form>
-      {create.error && <Failed notice={create.error} title="That was not created" />}
+      {create.error && (
+        <Failed notice={create.error} title="No service account was added" />
+      )}
     </>
   )
 }
@@ -266,7 +268,7 @@ function ApplicationSection({ projectId }: { projectId: string }) {
   const listing = useResource(
     (signal) => getApplication(projectId, signal),
     () => 1,
-    'The listing could not be loaded.',
+    'The listing did not come back from the service.',
     [projectId],
   )
   const [draft, setDraft] = useState({ slug: '', name: '', tagline: '', description: '', homepageUrl: '' })
@@ -280,11 +282,11 @@ function ApplicationSection({ projectId }: { projectId: string }) {
         description: draft.description,
         homepageUrl: draft.homepageUrl.trim() === '' ? null : draft.homepageUrl.trim(),
       }),
-    'The listing could not be saved.',
+    'Your changes did not reach the service.',
   )
   const submit = useMutation(
     () => submitApplication(projectId),
-    'The listing could not be submitted for review.',
+    'The listing stayed where it was; no reviewer has it.',
   )
 
   const current = listing.data?.application ?? save.result?.application ?? submit.result?.application
@@ -292,7 +294,12 @@ function ApplicationSection({ projectId }: { projectId: string }) {
   return (
     <>
       <h2 className="dp-h2">Directory listing</h2>
-      {listing.state === 'loading' && <Loading label="Reading the listing" />}
+      <p className="dp-para">
+        If you want this integration to appear in the public directory, describe it here and send it
+        to a reviewer. Everything you write below is read by people outside your organisation once
+        it is approved.
+      </p>
+      {listing.state === 'loading' && <Loading label="Fetching the listing" />}
 
       {current ? (
         <>
@@ -303,7 +310,7 @@ function ApplicationSection({ projectId }: { projectId: string }) {
             <Fact label="Slug">
               <Identifier value={current.slug} />
             </Fact>
-            <Fact label="Listed">{when(current.listedAt, 'not listed')}</Fact>
+            <Fact label="Public since">{when(current.listedAt, 'not yet public')}</Fact>
           </dl>
           {(current.status === 'draft' || current.status === 'rejected') && (
             <button
@@ -321,29 +328,30 @@ function ApplicationSection({ projectId }: { projectId: string }) {
           )}
           {current.status === 'in_review' && (
             <Note>
-              Submitted, and waiting for a CloudsForge reviewer. You cannot approve your own listing
-              and neither can this console — a directory a developer could publish into unilaterally
-              would not be a reviewed one.
+              It is with a CloudsForge reviewer and there is nothing further for you to do. Neither
+              you nor this console can wave it through — a directory anyone could publish into
+              unaided would not be worth the word “reviewed”.
             </Note>
           )}
           {current.status === 'rejected' && (
             <Note tone="warn">
-              A reviewer declined this listing. It was never public, and this is not final: change
-              the copy above and submit it again.
+              A reviewer sent this back. It never went public, and the door is not shut: rework the
+              text and submit it a second time.
             </Note>
           )}
           {current.status === 'listed' && (
             <Note>
-              Editing this copy will not remove it from the directory and will not send it back for
-              review. The status transition is the reviewed event; the words are not.
+              You can rewrite any of this without consequence. Saving does not pull the listing down
+              and does not queue it for review again — approval attaches to the status change, not
+              to the words.
             </Note>
           )}
         </>
       ) : (
         listing.state !== 'loading' && (
           <Empty
-            title="This project has no listing"
-            hint="A listing is optional. Write one only if you want this integration to appear in the public directory."
+            title="Nothing has been drafted"
+            hint="Listings are entirely optional and this project has skipped one, so it does not appear in the directory. Fill in the form below if you want that to change."
           />
         )
       )}
@@ -401,15 +409,20 @@ function ApplicationSection({ projectId }: { projectId: string }) {
             onChange={(event) => setDraft({ ...draft, homepageUrl: event.currentTarget.value })}
           />
           <span className="dp-field__help">
-            Absolute https, with no wildcard. Leave it empty for none.
+            A full https address, no wildcards. Leave the field blank if there is nowhere to send
+            people.
           </span>
         </label>
         <button type="submit" className="cf-btn" disabled={save.busy}>
           {save.busy ? 'Saving…' : 'Save listing'}
         </button>
       </form>
-      {save.error && <Failed notice={save.error} title="That listing was not saved" />}
-      {submit.error && <Failed notice={submit.error} title="That was not submitted" />}
+      {save.error && (
+        <Failed notice={save.error} title="Your edits were not saved. Copy them before you leave" />
+      )}
+      {submit.error && (
+        <Failed notice={submit.error} title="Nothing reached the review queue" />
+      )}
     </>
   )
 }

@@ -41,15 +41,16 @@ import {
 } from '../lib/devplatform.ts'
 
 const CLIENT_SECRET_NOTE =
-  'This is the only time this client secret is shown. It is stored under scrypt, in a table whose ' +
-  'CHECK constraint refuses any faster hash, and cannot be recovered.'
+  'You are looking at this client secret for the only time. What we keep is a scrypt hash, in a ' +
+  'table whose CHECK constraint rejects any row storing something cheaper to crack, so there is ' +
+  'nothing here that could give the value back to you.'
 
 export function OAuthPage() {
   const { id = '' } = useParams()
   const clients = useResource(
     (signal) => listClients(id, signal),
     (data) => data.clients.length,
-    'The OAuth clients could not be loaded.',
+    'The client list did not come back.',
     [id],
   )
 
@@ -57,19 +58,23 @@ export function OAuthPage() {
     <>
       <h2 className="dp-h2">OAuth clients</h2>
       <p className="dp-para">
-        A client for the authorisation-code flow, when your integration acts on behalf of a
-        CloudsForge account rather than on its own. If it only acts as itself, an API key is the
-        simpler credential and there is nothing to register here.
+        Register a client when your software needs to act for somebody else’s CloudsForge account —
+        the authorisation-code flow, where the account holder approves what you are asking for.
+        Where your integration only ever speaks for itself, stay with an API key: it is fewer moving
+        parts and nothing on this page applies.
       </p>
 
       <NewClient projectId={id} onRegistered={clients.reload} />
 
-      {clients.state === 'loading' && <Loading label="Reading the clients" />}
+      {clients.state === 'loading' && <Loading label="Fetching the clients" />}
       {(clients.state === 'failed' || clients.state === 'forbidden') && clients.error && (
         <Failed notice={clients.error} onRetry={clients.reload} />
       )}
       {clients.state === 'empty' && (
-        <Empty title="No OAuth clients" hint="Register one above if you need the authorisation-code flow." />
+        <Empty
+          title="This project has registered no clients"
+          hint="Most integrations never need one. Use the form above only when your software must act on behalf of a CloudsForge account that is not yours."
+        />
       )}
       {clients.state === 'ok' && clients.data && (
         <div className="dp-tablewrap">
@@ -123,7 +128,7 @@ function NewClient({ projectId, onRegistered }: { projectId: string; onRegistere
   const vocabulary = useResource(
     (signal) => getScopes(signal),
     (data) => data.scopes.length,
-    'The scope vocabulary could not be loaded.',
+    'We could not reach the service that publishes the scope list.',
   )
   const [name, setName] = useState('')
   const [redirects, setRedirects] = useState('')
@@ -145,7 +150,7 @@ function NewClient({ projectId, onRegistered }: { projectId: string; onRegistere
     )
     setRegistered(result)
     return result
-  }, 'The client could not be registered.')
+  }, 'The platform refused to register this client.')
 
   const toggle = (scope: string) =>
     setScopes((current) =>
@@ -154,7 +159,10 @@ function NewClient({ projectId, onRegistered }: { projectId: string; onRegistere
 
   return (
     <>
-      <Note tone="warn">{CLIENT_SECRET_NOTE} Have somewhere to put it before you press the button.</Note>
+      <Note tone="warn">
+        {CLIENT_SECRET_NOTE} Open your secret manager first — the value appears the moment you
+        submit, and closing that box ends your only chance to read it.
+      </Note>
       <form
         className="dp-form"
         onSubmit={(event) => {
@@ -185,9 +193,10 @@ function NewClient({ projectId, onRegistered }: { projectId: string; onRegistere
             required
           />
           <span className="dp-field__help">
-            One per line. Absolute https, or http on localhost for development. No fragment and no
-            wildcard: a wildcard redirect hands an authorisation code to whoever asked for it, and
-            the database refuses one whatever the write path.
+            One address per line, each a full https URL — or http on localhost while you are
+            building. No fragments, and no patterns. A pattern here would let anyone who can shape a
+            matching address collect an authorisation code meant for you, which is why the database
+            rejects one no matter which code path tries to write it.
           </span>
         </label>
         <fieldset className="dp-fieldset">
@@ -209,7 +218,9 @@ function NewClient({ projectId, onRegistered }: { projectId: string; onRegistere
         </button>
       </form>
 
-      {register.error && <Failed notice={register.error} title="That client was not registered" />}
+      {register.error && (
+        <Failed notice={register.error} title="No client was registered, and nothing changed" />
+      )}
 
       {registered?.clientSecret && (
         <ShownOnce
@@ -220,8 +231,9 @@ function NewClient({ projectId, onRegistered }: { projectId: string; onRegistere
           onAcknowledge={() => setRegistered(null)}
         >
           <p className="dp-once__extra">
-            The client id above is public and appears in the authorisation request. The value in the
-            box is not, and belongs only in your server’s configuration.
+            That client id travels in the open — it sits in the authorisation request and anyone can
+            see it. The value in the box does not: keep it on your server, out of any code a browser
+            downloads.
           </p>
         </ShownOnce>
       )}
@@ -246,7 +258,10 @@ function NewClient({ projectId, onRegistered }: { projectId: string; onRegistere
  */
 function RevokeClient({ id, onRevoked }: { id: string; onRevoked: () => void }) {
   const [confirming, setConfirming] = useState(false)
-  const revoke = useMutation(() => revokeClient(id), 'The client could not be revoked.')
+  const revoke = useMutation(
+    () => revokeClient(id),
+    'The withdrawal did not take. This client is still verifying.',
+  )
 
   if (!confirming) {
     return (
@@ -258,7 +273,9 @@ function RevokeClient({ id, onRevoked }: { id: string; onRevoked: () => void }) 
   return (
     <div className="dp-confirm">
       <p className="dp-confirm__lead">
-        Revoke this client? Its secret stops verifying immediately and cannot be reinstated.
+        You are about to withdraw this client. Its secret stops verifying at once, and every
+        authorisation flow that depends on it breaks. <strong>Nothing reinstates it</strong> — you
+        would register a replacement and update whatever holds the old credentials.
       </p>
       <button
         type="button"
@@ -266,12 +283,14 @@ function RevokeClient({ id, onRevoked }: { id: string; onRevoked: () => void }) 
         disabled={revoke.busy}
         onClick={() => void revoke.run().then((result) => result && onRevoked())}
       >
-        {revoke.busy ? 'Revoking…' : 'Revoke it'}
+        {revoke.busy ? 'Withdrawing…' : 'Withdraw this client'}
       </button>
       <button type="button" className="cf-btn" onClick={() => setConfirming(false)}>
-        Keep it
+        Leave it working
       </button>
-      {revoke.error && <Failed notice={revoke.error} title="That client was not revoked" />}
+      {revoke.error && (
+        <Failed notice={revoke.error} title="This client is still live — nothing was withdrawn" />
+      )}
     </div>
   )
 }

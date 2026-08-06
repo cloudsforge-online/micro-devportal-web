@@ -61,7 +61,9 @@ export function keyState(key: {
       tone: 'crit',
       glyph: '⊘',
       word: 'Revoked',
-      meaning: 'Refused at authentication. The row is kept so the credential’s history survives.',
+      meaning:
+        'Turned away at authentication. The row stays put, because it is the only surviving proof ' +
+        'this credential ever existed.',
     }
   }
   if (key.expiresAt !== null && new Date(key.expiresAt).getTime() <= now.getTime()) {
@@ -69,7 +71,9 @@ export function keyState(key: {
       tone: 'crit',
       glyph: '⌛',
       word: 'Expired',
-      meaning: 'Past its expiry. Refused at authentication; issue a new key rather than editing it.',
+      meaning:
+        'Its expiry date has gone by, so it no longer authenticates. Nothing extends a key — mint ' +
+        'a replacement instead.',
     }
   }
   if (key.lastUsedAt === null) {
@@ -77,10 +81,15 @@ export function keyState(key: {
       tone: 'idle',
       glyph: '○',
       word: 'Never used',
-      meaning: 'Live, and no request has ever presented it.',
+      meaning: 'Working, but no call has ever arrived carrying it.',
     }
   }
-  return { tone: 'good', glyph: '●', word: 'Live', meaning: 'Accepted at authentication.' }
+  return {
+    tone: 'good',
+    glyph: '●',
+    word: 'Live',
+    meaning: 'Working, and the platform is letting it through.',
+  }
 }
 
 /**
@@ -102,7 +111,7 @@ export function deliveryState(
       tone: 'good',
       glyph: '●',
       word: 'Delivered',
-      meaning: 'Your endpoint answered 2xx.',
+      meaning: 'Your service took it and answered 2xx. Nothing further to do.',
     }
   }
   if (delivery.attempts >= maxAttempts) {
@@ -111,15 +120,15 @@ export function deliveryState(
       glyph: '■',
       word: 'Abandoned',
       meaning:
-        'Past the attempt ceiling and no longer retried. The row is kept because it is the only ' +
-        'record that this event was sent and never taken.',
+        'We have stopped trying. This event will not arrive, and the row survives as the only ' +
+        'evidence you were sent something you never received.',
     }
   }
   return {
     tone: 'warn',
     glyph: '◐',
     word: 'Retrying',
-    meaning: `Attempt ${delivery.attempts} so far. It will be retried with an increasing backoff.`,
+    meaning: `We have tried ${delivery.attempts} times and will keep going, waiting longer between each.`,
   }
 }
 
@@ -135,34 +144,39 @@ export function deliveryState(
 export function applicationState(status: string): Tone {
   switch (status) {
     case 'listed':
-      return { tone: 'good', glyph: '●', word: 'Listed', meaning: 'Visible in the public directory.' }
+      return {
+        tone: 'good',
+        glyph: '●',
+        word: 'Listed',
+        meaning: 'Anyone can find this in the public directory.',
+      }
     case 'in_review':
       return {
         tone: 'warn',
         glyph: '◐',
         word: 'In review',
-        meaning: 'Submitted, and waiting for a CloudsForge reviewer to decide.',
+        meaning: 'It is with a CloudsForge reviewer. There is nothing for you to do until they answer.',
       }
     case 'rejected':
       return {
         tone: 'warn',
         glyph: '◌',
         word: 'Rejected',
-        meaning: 'A reviewer declined this listing. Edit it and submit it again — this is not final.',
+        meaning: 'A reviewer sent it back. Rework the text and try again — the door is not shut.',
       }
     case 'delisted':
       return {
         tone: 'crit',
         glyph: '⊘',
         word: 'Delisted',
-        meaning: 'Removed from the public directory.',
+        meaning: 'It was public once and has been taken down.',
       }
     default:
       return {
         tone: 'idle',
         glyph: '○',
         word: 'Draft',
-        meaning: 'Saved and not submitted. Nobody outside this project can see it.',
+        meaning: 'Saved here and sent nowhere. Only your project can see it.',
       }
   }
 }
@@ -182,13 +196,23 @@ export function quotaTone(used: number, limit: number): Tone {
       tone: 'crit',
       glyph: '■',
       word: 'At the limit',
-      meaning: 'The next requests in this window will be refused.',
+      meaning: 'Further calls in this window are about to start coming back refused.',
     }
   }
   if (share >= 0.7) {
-    return { tone: 'warn', glyph: '◐', word: 'Filling', meaning: 'Over seventy per cent used.' }
+    return {
+      tone: 'warn',
+      glyph: '◐',
+      word: 'Filling',
+      meaning: 'More than seven tenths of this window is gone.',
+    }
   }
-  return { tone: 'good', glyph: '●', word: 'Within limit', meaning: 'Room left in this window.' }
+  return {
+    tone: 'good',
+    glyph: '●',
+    word: 'Within limit',
+    meaning: 'Plenty of headroom left before this window closes.',
+  }
 }
 
 /** An ISO timestamp as a readable absolute date. Never a relative one — see below. */

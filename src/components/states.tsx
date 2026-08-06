@@ -62,7 +62,7 @@ export function Empty({
 export function Failed({
   notice,
   onRetry,
-  title = 'That did not load',
+  title = 'This did not come back',
 }: {
   notice: ErrorNotice
   onRetry?: (() => void) | undefined
@@ -77,13 +77,14 @@ export function Failed({
       <p className="dp-state__hint">{notice.message}</p>
       {notice.requestId && (
         <p className="dp-state__meta">
-          Quote this to support: <code className="cf-num dp-reqid">{notice.requestId}</code>
+          Send us this and we can find your exact request:{' '}
+          <code className="cf-num dp-reqid">{notice.requestId}</code>
         </p>
       )}
       {onRetry && (
         <div className="dp-state__action">
           <button type="button" className="cf-btn" onClick={onRetry}>
-            Try again
+            Ask again
           </button>
         </div>
       )}
@@ -106,7 +107,7 @@ export function Failed({
  */
 export function Forbidden({
   notice,
-  title = 'That was refused',
+  title = 'The platform understood, and said no',
 }: {
   notice?: ErrorNotice | undefined
   title?: string | undefined
@@ -118,13 +119,14 @@ export function Forbidden({
       </span>
       <p className="dp-state__title">{title}</p>
       <p className="dp-state__hint">
-        {notice?.message ?? 'The credential you presented does not carry the authority this needs.'}{' '}
-        Check the scopes on the key you are using, and that you are an owner or an admin of this
-        organisation.
+        {notice?.message ?? 'Whatever you presented does not carry enough authority for this.'}{' '}
+        Repeating it will not help. Two things are worth checking: the scopes attached to the key
+        you are sending, and whether you own or administer this organisation.
       </p>
       {notice?.requestId && (
         <p className="dp-state__meta">
-          Reference: <code className="cf-num dp-reqid">{notice.requestId}</code>
+          Quote this if you ask us about it:{' '}
+          <code className="cf-num dp-reqid">{notice.requestId}</code>
         </p>
       )}
     </div>

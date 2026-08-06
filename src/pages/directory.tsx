@@ -28,7 +28,7 @@ export function DirectoryPage() {
   const directory = useResource(
     (signal) => listDirectory({ signal }),
     (data) => data.applications.length,
-    'The directory could not be loaded.',
+    'The directory did not come back from the service.',
   )
 
   return (
@@ -36,19 +36,20 @@ export function DirectoryPage() {
       <header className="dp-page__head">
         <h1 className="dp-page__title">Application directory</h1>
         <p className="dp-page__lead">
-          Integrations built on CloudsForge that have been reviewed and listed. Everything here is
-          public: no credential is presented to read this page.
+          Software other people have built against CloudsForge, each one checked by a reviewer
+          before it reached this page. Nothing on this screen is behind a login — your browser sends
+          no credential to fetch it.
         </p>
       </header>
 
-      {directory.state === 'loading' && <Loading label="Reading the directory" />}
+      {directory.state === 'loading' && <Loading label="Fetching the listings" />}
       {(directory.state === 'failed' || directory.state === 'forbidden') && directory.error && (
         <Failed notice={directory.error} onRetry={directory.reload} />
       )}
       {directory.state === 'empty' && (
         <Empty
-          title="Nothing is listed yet"
-          hint="The service answered with an empty directory — this page has finished loading, and there is nothing to show. Only applications a CloudsForge reviewer has approved appear here."
+          title="The directory holds nothing at the moment"
+          hint="This page has stopped loading — the service replied and the list was empty. A listing only reaches here once a CloudsForge reviewer has approved it, so drafts and submissions in the queue are invisible from the outside."
         />
       )}
       {directory.state === 'ok' && directory.data && (
@@ -58,9 +59,11 @@ export function DirectoryPage() {
               <h2 className="dp-card__title">
                 <Link to={`/apps/${encodeURIComponent(application.slug)}`}>{application.name}</Link>
               </h2>
-              <p className="dp-card__tagline">{application.tagline || 'No tagline.'}</p>
+              <p className="dp-card__tagline">
+                {application.tagline || 'Its developer wrote no summary line.'}
+              </p>
               <p className="dp-card__meta">
-                Listed {when(application.listedAt, 'at an unrecorded time')}
+                Approved {when(application.listedAt, 'on a date that was not recorded')}
               </p>
             </li>
           ))}
@@ -84,18 +87,18 @@ export function ApplicationPage() {
   const listing = useResource(
     (signal) => getApplicationBySlug(slug, signal),
     () => 1,
-    'That application could not be loaded.',
+    'Nothing came back for this listing.',
     [slug],
   )
 
   return (
     <section className="dp-page">
-      {listing.state === 'loading' && <Loading label="Reading the listing" />}
+      {listing.state === 'loading' && <Loading label="Fetching this listing" />}
       {(listing.state === 'failed' || listing.state === 'forbidden') && listing.error && (
         <Failed
           notice={listing.error}
           onRetry={listing.reload}
-          title="There is no listed application at this address"
+          title="Nothing approved sits at this address"
         />
       )}
       {listing.state === 'ok' && listing.data && (
@@ -118,11 +121,12 @@ export function ApplicationPage() {
             </p>
           )}
           <Note>
-            This listing was written by its developer. CloudsForge reviews it before it appears here
-            and does not operate it.
+            Everything above was written by the team who built the integration. A CloudsForge
+            reviewer read it before it went up. We do not run the software itself, and support for
+            it comes from its developer.
           </Note>
           <p className="dp-para">
-            <Link to="/apps">Back to the directory</Link>
+            <Link to="/apps">Return to the directory</Link>
           </p>
         </>
       )}

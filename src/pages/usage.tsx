@@ -61,19 +61,19 @@ export function UsagePage() {
   const project = useResource(
     (signal) => getProject(id, signal),
     () => 1,
-    'The project could not be loaded.',
+    'The project did not come back from the service.',
     [id],
   )
   const quotas = useResource(
     (signal) => getQuotas(id, signal),
     (data) => data.quotas.length,
-    'The quotas could not be loaded.',
+    'The allowances did not come back.',
     [id],
   )
   const usage = useResource(
     (signal) => listUsage(id, { signal }),
     (data) => data.usage.length,
-    'The usage could not be loaded.',
+    'The usage summaries did not come back.',
     [id],
   )
 
@@ -98,19 +98,20 @@ export function UsagePage() {
     <>
       <h2 className="dp-h2">Quotas</h2>
       <p className="dp-para">
-        Counted per environment, in the database rather than in any one running copy of the service —
-        so these are the platform’s numbers and not one replica’s. A request that would exceed a
-        window is refused rather than recorded.
+        Every environment carries its own allowance, and the tally is held in the database rather
+        than inside whichever copy of the service took your call. What you see is therefore the
+        whole platform’s count, not one machine’s guess. A call that would push a window past its
+        limit is turned away instead of being counted.
       </p>
 
-      {quotas.state === 'loading' && <Loading label="Reading the quotas" />}
+      {quotas.state === 'loading' && <Loading label="Fetching the limits" />}
       {(quotas.state === 'failed' || quotas.state === 'forbidden') && quotas.error && (
         <Failed notice={quotas.error} onRetry={quotas.reload} />
       )}
       {quotas.state === 'empty' && (
         <Empty
-          title="This project has no quotas"
-          hint="That should not happen: a project is created with its default quotas in the same transaction as its environments. If you see this, the project’s creation did not complete as designed."
+          title="No allowances are recorded against this project"
+          hint="This is not a normal state. Limits are written alongside the environments in the same transaction that creates a project, so an empty answer means that transaction did not finish the way it was meant to. Worth raising with us, quoting the project id."
         />
       )}
       {quotas.state === 'ok' && quotas.data && (
@@ -118,16 +119,17 @@ export function UsagePage() {
           <div className="dp-tablewrap">
             <table className="dp-table">
               <caption className="dp-table__caption">
-                The configured limits. You may lower one; raising it is CloudsForge’s decision, and
-                the platform refuses a larger number whoever asks.
+                What each environment is allowed. Pulling a number down is yours to do; pushing one
+                up belongs to CloudsForge, and the platform rejects a larger figure no matter who
+                sends it.
               </caption>
               <thead>
                 <tr>
                   <th scope="col">Environment</th>
                   <th scope="col">Meter</th>
                   <th scope="col">Period</th>
-                  <th scope="col">Limit</th>
-                  <th scope="col">Lower it</th>
+                  <th scope="col">Allowed</th>
+                  <th scope="col">Reduce it</th>
                 </tr>
               </thead>
               <tbody>
@@ -165,12 +167,14 @@ export function UsagePage() {
             </table>
           </div>
 
-          <h3 className="dp-h3">The current windows</h3>
+          <h3 className="dp-h3">Where each window stands</h3>
           {Object.entries(quotas.data.current).map(([environment, windows]) => (
             <div className="dp-windows" key={environment}>
               <h4 className="dp-h4">{environment}</h4>
               {windows.length === 0 ? (
-                <p className="dp-absent">No window has opened yet in this environment.</p>
+                <p className="dp-absent">
+                  Nothing has been metered in this environment, so no window is open.
+                </p>
               ) : (
                 <ul className="dp-meters">
                   {windows.map((window) => (
@@ -196,28 +200,30 @@ export function UsagePage() {
           ))}
 
           <Note>
-            <strong>Raising a limit is not something this console does</strong>, and not because it
-            declines to: the platform refuses a larger number from any credential a browser can
-            hold. Lowering is yours, and it is worth using — a cap on your test environment is what
-            stops a runaway loop spending the month’s allowance. To raise one, ask CloudsForge.
+            <strong>No allowance can be increased from this console</strong> — and that is the
+            platform’s rule rather than this page being coy. A larger figure is rejected for every
+            credential a browser is capable of holding. Cutting one back is entirely yours, and it
+            earns its keep: a tight ceiling on your test environment is what keeps a loop that ran
+            away overnight from eating the month. Ask CloudsForge when you need more headroom.
           </Note>
         </>
       )}
 
       <h2 className="dp-h2">Usage</h2>
       <p className="dp-para">
-        Hourly buckets, from the last seven days. These are rollups rather than raw calls: raw usage
-        events are kept for 35 days by default and the rollups for 400, and this route reads only the
-        rollups. A gap at the older end is retention, not a quiet week.
+        One row per hour, covering the past seven days. These figures are summaries rather than
+        individual calls — the underlying events live for 35 days by default and the summaries for
+        400, and this screen only ever reads the summaries. Where the older end of the table thins
+        out, you are seeing retention rather than a quiet week.
       </p>
-      {usage.state === 'loading' && <Loading label="Reading the usage" />}
+      {usage.state === 'loading' && <Loading label="Fetching the usage summaries" />}
       {(usage.state === 'failed' || usage.state === 'forbidden') && usage.error && (
         <Failed notice={usage.error} onRetry={usage.reload} />
       )}
       {usage.state === 'empty' && (
         <Empty
-          title="No metered calls in the last seven days"
-          hint="This route reads a seven-day window and takes no date parameter, so an empty answer means nothing in that window rather than nothing ever."
+          title="Nothing was metered in the past week"
+          hint="The window is fixed at seven days and there is no way to shift it from here, so this tells you about the past week only. Traffic older than that is not being reported as absent — it is simply out of range."
         />
       )}
       {usage.state === 'ok' && usage.data && (
@@ -296,7 +302,7 @@ function LowerLimit({
         maxUnits: wanted,
         current: quota.maxUnits,
       }),
-    'The limit was not changed.',
+    'The platform kept the existing allowance.',
   )
 
   return (
@@ -313,7 +319,8 @@ function LowerLimit({
     >
       <label className="dp-field dp-field--inline">
         <span className="dp-field__label dp-field__label--sr">
-          New {quota.period} limit for {environment}, lower than {count(quota.maxUnits)}
+          A smaller {quota.period} allowance for {environment}. It must come in under{' '}
+          {count(quota.maxUnits)}, and it applies from the next window rather than this one.
         </span>
         <input
           className="cf-input cf-num"
@@ -327,9 +334,11 @@ function LowerLimit({
         />
       </label>
       <button type="submit" className="cf-btn" disabled={!usable || lower.busy}>
-        {lower.busy ? 'Lowering…' : 'Lower'}
+        {lower.busy ? 'Reducing…' : 'Reduce'}
       </button>
-      {lower.error && <Failed notice={lower.error} title="That limit was not changed" />}
+      {lower.error && (
+        <Failed notice={lower.error} title="The allowance stands where it was" />
+      )}
     </form>
   )
 }

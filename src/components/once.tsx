@@ -169,7 +169,7 @@ export function ShownOnce({ kind, secret, note, label, children, onAcknowledge }
           ⌗
         </p>
         <h2 className="dp-once__title" id={titleId}>
-          Your {kind} — shown once
+          Your {kind}, on screen for the only time
         </h2>
         <p className="dp-once__note" id={noteId} role="alert">
           {note}
@@ -177,8 +177,9 @@ export function ShownOnce({ kind, secret, note, label, children, onAcknowledge }
 
         {label && (
           <p className="dp-once__label">
-            It will be listed as <code className="cf-num">{label}</code>. That identifier is safe to
-            put in a log or a support message; the value below is not.
+            The list above refers to it as <code className="cf-num">{label}</code>. Quote that
+            identifier freely — in a log, a ticket, a message to us. The box underneath is the part
+            that must not leave your secret store.
           </p>
         )}
 
@@ -190,7 +191,7 @@ export function ShownOnce({ kind, secret, note, label, children, onAcknowledge }
             value={secret}
             readOnly
             spellCheck={false}
-            aria-label={`The ${kind}. Copy it now.`}
+            aria-label={`The ${kind}. Take a copy before you close this.`}
             onFocus={(event) => event.currentTarget.select()}
           />
           <button type="button" className="cf-btn" onClick={copy}>
@@ -206,7 +207,7 @@ export function ShownOnce({ kind, secret, note, label, children, onAcknowledge }
             checked={writtenDown}
             onChange={(event) => setWrittenDown(event.currentTarget.checked)}
           />
-          I have stored it somewhere I can reach it again.
+          It is saved somewhere I can get to it later.
         </label>
 
         <div className="dp-once__actions">
@@ -216,12 +217,12 @@ export function ShownOnce({ kind, secret, note, label, children, onAcknowledge }
             disabled={!dismissable}
             onClick={onAcknowledge}
           >
-            Done — it will not be shown again
+            Close, and lose sight of it for good
           </button>
           {!dismissable && (
             <p className="dp-once__hint">
-              Copy it, or tick the box, before closing this. Nothing here or anywhere else can print
-              it a second time.
+              Take a copy, or confirm you have stored it, and this button unlocks. No screen in this
+              product — and no request to us — can produce the value a second time.
             </p>
           )}
         </div>
@@ -248,10 +249,15 @@ export function Replayed({ kind, label }: { kind: string; label?: string | undef
         ◐
       </span>
       <span>
-        This request repeated one that had already completed, so the {kind} was not created a second
-        time{label ? <> — it already exists as <code className="cf-num">{label}</code></> : null}.
-        Its secret was shown when it was first created and cannot be shown again. If you no longer
-        have it, revoke this one and issue another.
+        We had already handled this exact request, so no second {kind} was made
+        {label ? (
+          <>
+            {' '}
+            — the one you asked for is <code className="cf-num">{label}</code>
+          </>
+        ) : null}
+        . Its secret went on screen at the moment it was first created, and cannot be shown again.
+        Should you no longer hold that value, withdraw this {kind} and create a replacement.
       </span>
     </div>
   )
