@@ -78,8 +78,7 @@ export function PlatformPage() {
       <h2 className="dp-h2">How far a key’s authority reaches</h2>
       <p className="dp-para">
         Authority is written as scopes, and a scope names a service and an action instead of a URL,
-        so <code className="cf-num">market:write</code> stays true when a route moves
-        (<code className="cf-num">devplatform/src/scopes.ts</code>).{' '}
+        so <code className="cf-num">market:write</code> stays true when a route moves.{' '}
         <strong>Nothing is implied by anything else and there is no wildcard.</strong> Spell out
         every scope at issuance. A name the platform does not know stops the whole request rather
         than being quietly dropped, so a key can never come back holding less than you asked for.
@@ -135,11 +134,10 @@ export function PlatformPage() {
         </>
       )}
 
-      <h2 className="dp-h2">Rough edges you should hear about from us</h2>
+      <h2 className="dp-h2">Two limits worth knowing before you start</h2>
       <p className="dp-para">
-        Better here than three days into an integration. Each entry names what somebody found, the
-        files to check it against, and what would settle it. None of it is a plan; all of it is the
-        code as it stands.
+        Better here than three days into an integration. Both are the platform as it stands today,
+        not a plan, and both have something you can do about them.
       </p>
       <dl className="dp-gaps">
         {KNOWN_GAPS.map((gap) => (
@@ -147,16 +145,6 @@ export function PlatformPage() {
             <dt className="dp-gap__title">{gap.title}</dt>
             <dd className="dp-gap__body">
               <p>{gap.finding}</p>
-              <p className="dp-gap__closes">
-                <strong>Settled by:</strong> {gap.closes}
-              </p>
-              <p className="dp-gap__cites">
-                {gap.citations.map((citation) => (
-                  <code className="cf-num" key={citation}>
-                    {citation}
-                  </code>
-                ))}
-              </p>
             </dd>
           </div>
         ))}

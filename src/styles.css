@@ -700,18 +700,6 @@ body {
   max-width: 78ch;
 }
 
-.dp-gap__closes {
-  color: var(--cf-fg-dim);
-}
-
-.dp-gap__cites {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--cf-space-2xs);
-  font-size: var(--cf-text-2xs);
-  color: var(--cf-fg-mute);
-}
-
 /* ══════════════════════════════════════════════════════════════════════════
  * THE SHOWN-ONCE DIALOG.
  *

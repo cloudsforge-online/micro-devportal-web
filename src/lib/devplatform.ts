@@ -1174,16 +1174,23 @@ export function submitApplication(projectId: string): Promise<{ application: App
 
 /* ══════════════════════════════ the gaps, as data ══════════════════════════════ */
 
+/**
+ * A limit of the platform as it stands, written for the developer who would otherwise meet it
+ * three days into an integration.
+ *
+ * It used to carry two more fields, both of which were RENDERED: `citations`, a list of repository
+ * paths under each entry, and `closes`, what would settle it. The first is provenance for whoever
+ * fixes it and the second is a roadmap note; neither is something the developer reading this page
+ * can act on, and between them they turned a useful warning into an internal audit published on a
+ * product's front page. What that developer needs is the limit and what to do about it, so that is
+ * what a finding says now — and the provenance is kept in the comments around each entry below.
+ */
 export interface KnownGap {
   /** A stable id, used as the test's handle on this entry. */
   readonly id: string
   readonly title: string
   /** What is true today. Written as a finding, never as "coming soon". */
   readonly finding: string
-  /** The files somebody can check it against. Never a line: it is another repository's to move. */
-  readonly citations: readonly string[]
-  /** What would close it. Concrete enough to act on. */
-  readonly closes: string
 }
 
 /**
@@ -1210,24 +1217,24 @@ export interface KnownGap {
  * ══════════════════════════════════════════════════════════════════════════════════════════════
  */
 
+/*
+ * PROVENANCE, kept here rather than printed under the entry: `sdk/openapi.json` carries 52 paths
+ * and not one of them belongs to devplatform, so neither `sdk/packages/sdk/src/credentials.ts` nor
+ * `sdk/packages/cli/src/run.ts` has a route to call. Both still say in their own source that
+ * devplatform does not exist; it does (`devplatform/src/server.ts`). It closes when devplatform's
+ * `/v1` routes are added to the SDK's verified route table and to `openapi.json` — the gateway
+ * condition that used to block it is met, since `cf-api-devplatform` forwards the seven prefixes
+ * and the blackhole catch-all is gone.
+ */
 export const SDK_GAP: KnownGap = {
   id: 'sdk-has-no-devplatform',
-  title: 'The public SDK and CLI cannot manage a key',
+  title: 'Keys cannot be managed from the SDK or the CLI',
   finding:
-    'sdk/openapi.json carries 52 paths and not one belongs to devplatform, so @cloudsforge/sdk ' +
-    'and the cloudsforge CLI can present a key as a bearer token and can do nothing else with ' +
-    'one — no issue, no list, no revoke, no introspection. Both still say in their own source ' +
-    'that devplatform does not exist. It does.',
-  citations: [
-    'sdk/packages/sdk/src/credentials.ts',
-    'sdk/packages/cli/src/run.ts',
-    'devplatform/src/server.ts',
-  ],
-  closes:
-    'devplatform’s /v1 routes are added to the SDK’s verified route table and to openapi.json. ' +
-    'The condition this used to wait on — that the gateway route them first, so an SDK entry could ' +
-    'not name a path the gateway blackholes — is met: cf-api-devplatform forwards the seven ' +
-    'prefixes, and there is no blackhole catch-all left to fall into.',
+    'Our published SDK and command-line tool will carry an API key as a bearer token, and that is ' +
+    'the whole of what they do with one: neither can issue a key, list the keys you hold, revoke ' +
+    'one or ask what a key is allowed to do. Do all of that here in this console, or against the ' +
+    'API yourself. Both tools also still describe this platform as something that does not exist ' +
+    'yet, so do not take their word for it.',
 }
 
 /**
@@ -1244,26 +1251,23 @@ export const SDK_GAP: KnownGap = {
  * ══════════════════════════════════════════════════════════════════════════════════════════════
  */
 
+/*
+ * PROVENANCE: every `/v1` route taking an `:id` compares it against a uuid column and, apart from
+ * the two operator routes, passes the path segment straight through. Postgres answers `22P02
+ * invalid input syntax for type uuid`, nothing catches it, and the caller gets a 500. devplatform
+ * knows, and says so at `requireUuid` (`devplatform/src/server.ts`): changing the status code of
+ * every shipped route is its own decision, because a caller treating 500 as retryable would start
+ * seeing a 400 it must not retry. It closes when `requireUuid` guards every route that takes an id.
+ */
 export const MALFORMED_ID_GAP: KnownGap = {
   id: 'malformed-path-id-is-500',
-  title: 'A mistyped id is reported as a server fault',
+  title: 'A malformed id comes back as a server error, not a bad request',
   finding:
-    'Every /v1 route that takes an :id compares it against a uuid column, and all but the two ' +
-    'operator routes pass the path segment straight through. Postgres answers 22P02 invalid ' +
-    'input syntax for type uuid, nothing catches it, and the caller gets 500 internal — so ' +
-    'GET /v1/projects/not-a-uuid reports a platform failure for a typed URL. devplatform knows ' +
-    'and says so at requireUuid: changing the status code of every shipped route is a separate ' +
-    'decision from the four this commit made. This console never sends one, because its own ' +
-    'addresses are those ids and a mistyped one must not read as an outage.',
-  // ONE CITATION, NOT THREE. This was three line numbers in one file, and collapsing them to the
-  // file left three identical strings — which is what a line number is worth once the file is the
-  // unit: the same claim, repeated. The symbols are named in the finding instead.
-  citations: ['devplatform/src/server.ts'],
-  closes:
-    'requireUuid on every route that takes an :id, so the answer is 400 with the segment named. ' +
-    'It is a status-code change on shipped routes, which is why it is reported rather than ' +
-    'assumed: a caller today that treats 500 as retryable would start seeing a 400 it must not ' +
-    'retry, and that is a decision for the service and its callers together.',
+    'Every address in the API that contains an id expects a UUID. Send something that is not one ' +
+    'and you get a 500 rather than a 400, which reads as our fault when it is a typo in the URL. ' +
+    'If you branch on status codes, check the id before you treat a 500 from these routes as an ' +
+    'outage, and do not retry it — it will fail the same way every time. Nothing you do in this ' +
+    'console can produce one.',
 }
 
 export const KNOWN_GAPS: readonly KnownGap[] = [SDK_GAP, MALFORMED_ID_GAP]
