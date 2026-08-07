@@ -226,7 +226,18 @@ describe('nothing is loaded and no cookie is set before the reader answers', () 
       await s.click(s.byRole('button', 'Reject'))
       await s.settle()
       assert.deepEqual(scriptSrcs(s), [], 'Reject injected a script')
-      assert.equal(s.document.cookie, '', 'Reject left a cookie behind')
+      /*
+       * This was `document.cookie === ''`. It is no longer, and the reason is a behaviour change
+       * rather than a weakened test: the RECORD of the decision is now a cookie on the registrable
+       * domain, because `localStorage` is per-origin and every surface in this estate is a
+       * different subdomain — one answer used to mean seventeen banners. So the jar is not empty
+       * after an answer, and the claim with legal weight is the sharper one: nothing GOOGLE sets
+       * is in it. A record of the reader's own refusal is exempt under ePrivacy Art. 5(3); `_ga`
+       * is the thing that is not.
+       */
+      const jar = s.document.cookie
+      assert.ok(!/(^|;\s*)_g(a|id|at)/.test(jar), `Reject left an analytics cookie behind: ${jar}`)
+      assert.match(jar, /cf_consent_analytics=denied/, 'the refusal was not recorded across surfaces')
       assert.equal(s.window.localStorage.getItem(CONSENT_STORAGE_KEY), 'denied')
       assert.equal(s.document.querySelector('[role="dialog"]'), null, 'the banner stayed up')
     })
