@@ -69,8 +69,8 @@ export const PRIVATE_ROBOTS = 'noindex, nofollow'
  * page's own description for as long as it took somebody to open the served HTML.
  */
 export const ROOT_DESCRIPTION =
-  'Enrol an organisation, create a project, and issue an API key with the exact scopes it needs. ' +
-  "A key's secret is shown once, at the moment it is created, and cannot be recovered afterwards."
+  'Enrol an organisation, create a project, and issue an API key with exactly the scopes it ' +
+  "needs. A key's secret is shown once and cannot be recovered."
 
 /** The directory's own description: the one other page a person who is not a developer may reach. */
 export const DIRECTORY_DESCRIPTION =
