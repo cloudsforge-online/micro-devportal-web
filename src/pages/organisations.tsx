@@ -61,16 +61,16 @@ export function OrganisationsPage() {
       <header className="dp-page__head">
         <h1 className="dp-page__title">Your organisations</h1>
         <p className="dp-page__lead">
-          A developer organisation is an <em>enrolment</em> of an organisation identity already
-          holds. CloudsForge’s account service owns who is a member of what; this platform records
-          that the organisation builds on it, and holds its projects, keys and quotas.
+          Membership is decided by your CloudsForge account, not by this console. What happens here
+          is <em>enrolment</em> — telling the developer platform that one of those organisations
+          intends to build, after which it can hold projects, credentials and quotas.
         </p>
       </header>
 
       {developer.organisations.length === 0 ? (
         <Empty
-          title="This account administers no organisations"
-          hint="Organisations are created in your CloudsForge account, not here. Once you own or administer one, it will appear on this page."
+          title="You do not administer an organisation yet"
+          hint="An organisation is set up in your CloudsForge account rather than on this page. Once you are its owner or an admin of it, it will turn up in this list and you can enrol it."
         />
       ) : (
         <ul className="dp-cards">
@@ -81,10 +81,10 @@ export function OrganisationsPage() {
       )}
 
       <Note>
-        An organisation that is already enrolled shows a link rather than a form. Enrolling names it
-        once and never again — the service keys the enrolment on the organisation itself and a second
-        call returns the existing row unchanged, so a form here would be a rename control that
-        renames nothing.
+        Where a card offers a link instead of a form, that organisation is already on the platform.
+        The name and slug you choose apply to the first enrolment only. Enrolling twice hands back
+        the record that exists, untouched, so a form on an enrolled card would look like a rename
+        and change nothing.
       </Note>
     </section>
   )
@@ -109,7 +109,7 @@ function EnrolCard({ org }: { org: IdentityOrg }) {
   const existing = useResource(
     (signal) => resolveOrganisation(org.id, signal),
     () => 1,
-    'Whether this organisation is enrolled could not be determined.',
+    'We could not find out whether this organisation is already on the platform.',
     [org.id],
   )
   const enrolled = existing.data?.organisations[0] ?? null
@@ -118,19 +118,19 @@ function EnrolCard({ org }: { org: IdentityOrg }) {
     <li className="dp-card">
       <h2 className="dp-card__title">{org.name}</h2>
       <p className="dp-card__meta">
-        Your role: <strong>{org.role}</strong> · <Identifier value={org.id} />
+        You are <strong>{org.role}</strong> here · <Identifier value={org.id} />
       </p>
 
-      {existing.state === 'loading' && <Loading label="Checking the enrolment" />}
+      {existing.state === 'loading' && <Loading label="Checking whether this one is enrolled" />}
       {(existing.state === 'failed' || existing.state === 'forbidden') && existing.error && (
         <Failed notice={existing.error} onRetry={existing.reload} />
       )}
       {existing.state !== 'loading' && existing.error === null && (
         enrolled ? (
           <p className="dp-para">
-            Enrolled as <Identifier value={enrolled.slug} /> ·{' '}
+            On the platform as <Identifier value={enrolled.slug} /> ·{' '}
             <Link to={`/organisations/${encodeURIComponent(enrolled.id)}`}>
-              Open {enrolled.name}
+              Go to {enrolled.name}
             </Link>
           </p>
         ) : (
@@ -154,7 +154,7 @@ function EnrolForm({ org }: { org: IdentityOrg }) {
   const [slug, setSlug] = useState(suggestSlug(org.slug || org.name))
   const enrol = useMutation(
     () => enrolOrganisation({ identityOrgId: org.id, name, slug }),
-    'The organisation could not be enrolled.',
+    'The platform turned the enrolment down. Nothing was created.',
   )
   const allowed = mayEnrol(org)
   const slugOk = SLUG.test(slug)
@@ -163,8 +163,9 @@ function EnrolForm({ org }: { org: IdentityOrg }) {
     <>
       {!allowed && (
         <Note tone="warn">
-          Only an owner or an admin of an organisation may enrol it. Ask one of them to open this
-          page — the platform re-checks the role on the request, so it cannot be worked around here.
+          Enrolment is reserved to an organisation’s owners and admins, and your role is neither.
+          Ask one of them to visit this page. The platform re-reads your role when the request
+          arrives, so nothing you do in this browser gets around it.
         </Note>
       )}
 
@@ -197,8 +198,8 @@ function EnrolForm({ org }: { org: IdentityOrg }) {
             required
           />
           <span className="dp-field__help" id={`slug-help-${org.id}`}>
-            3 to 64 characters of lowercase letters, digits and hyphens, starting and ending with a
-            letter or digit. Used only on this first enrolment.
+            Between 3 and 64 characters: lowercase letters, digits and hyphens, with a letter or
+            digit at each end. Pick carefully — this is the one enrolment that sets it.
           </span>
         </label>
         <button
@@ -210,7 +211,9 @@ function EnrolForm({ org }: { org: IdentityOrg }) {
         </button>
       </form>
 
-      {enrol.error && <Failed notice={enrol.error} title="That was not enrolled" />}
+      {enrol.error && (
+        <Failed notice={enrol.error} title="The enrolment did not go through" />
+      )}
     </>
   )
 }

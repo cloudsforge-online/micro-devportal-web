@@ -18,18 +18,19 @@ export function PlatformPage() {
   const vocabulary = useResource(
     (signal) => getScopes(signal),
     (data) => data.scopes.length,
-    'The scope vocabulary could not be loaded.',
+    'We could not reach the service that publishes the scope list.',
   )
 
   return (
     <section className="dp-page">
       <header className="dp-page__head">
-        <h1 className="dp-page__title">The Developer Platform</h1>
+        <h1 className="dp-page__title">Build on CloudsForge</h1>
         <p className="dp-page__lead">
-          A CloudsForge integration presents an API key. This is where an organisation enrols, a
-          project is created, a key is issued with the exact scopes it needs, and its usage is
-          metered. A key’s secret is shown once, at the moment it is created, and cannot be
-          recovered afterwards by anybody — including us.
+          Underneath all of this is a chain that speaks Ethereum. Its virtual machine was written
+          from scratch in our own source tree and is held to Ethereum’s published test vectors, so a
+          Solidity contract you compiled for mainnet deploys here unchanged, and MetaMask, ethers,
+          viem, Hardhat and Foundry address it as they would any other node. There is no translation
+          layer between your tools and the chain, and no house SDK you have to adopt first.
         </p>
       </header>
 
@@ -42,27 +43,61 @@ export function PlatformPage() {
         </Link>
       </div>
 
-      <h2 className="dp-h2">The scopes a key may carry</h2>
+      <h2 className="dp-h2">The v1 API, and the credential that opens it</h2>
       <p className="dp-para">
-        Named by service and action rather than by URL — <code className="cf-num">market:write</code>{' '}
-        is a fact about authority and survives any change to where the public API is mounted
-        (<code className="cf-num">devplatform/src/scopes.ts</code>).{' '}
-        <strong>There is no wildcard scope.</strong> Name every scope a key needs: an unknown one is
-        refused at issuance rather than filtered out, so a key never quietly carries less authority
-        than you asked for. A key with no scopes at all is legal, and it can do nothing.
+        Above the chain sits an HTTP API that the rest of the estate answers on. One credential
+        opens all of it: an API key, presented as{' '}
+        <code className="cf-num">Authorization: Bearer</code>. This console is the place an
+        organisation enrols, a project comes into being, keys are minted against it, and the calls
+        those keys make are counted against a limit you can see.
+      </p>
+      <p className="dp-para">
+        A key’s secret is printed at the instant it is minted and at no later moment. We keep a
+        scrypt hash of it and nothing else, so losing the value means issuing a replacement — no
+        route recovers it, and neither can anybody who works here.
       </p>
 
-      {vocabulary.state === 'loading' && <Loading label="Reading the scope vocabulary" />}
+      <h2 className="dp-h2">What answers on that host</h2>
+      <p className="dp-para">
+        Wallets and balances, the market, minting, pricing, account identity, the activity feed, the
+        worlds service and Foresight are all mounted under the same <code className="cf-num">/v1</code>{' '}
+        host and all read the same bearer token. You do not assemble a second credential to move
+        between them.
+      </p>
+      <p className="dp-para">
+        Two of those behave in a way worth knowing before you design around them.{' '}
+        <strong>EMBER can be mined from a browser tab</strong> — a page points itself at the chain
+        and the reward is paid to a key generated on their machine that never leaves it, with
+        nothing to download.
+        <strong> Foresight settles in the contract, not on our servers</strong>: a stake can be
+        placed in Bitcoin, Ethereum, Litecoin, Solana, XRP, EMBER or any token launched on this
+        chain, and a winner collects by calling the contract directly — which still works with every
+        machine CloudsForge runs powered down.
+      </p>
+
+      <h2 className="dp-h2">How far a key’s authority reaches</h2>
+      <p className="dp-para">
+        Authority is written as scopes, and a scope names a service and an action instead of a URL,
+        so <code className="cf-num">market:write</code> stays true when a route moves
+        (<code className="cf-num">devplatform/src/scopes.ts</code>).{' '}
+        <strong>Nothing is implied by anything else and there is no wildcard.</strong> Spell out
+        every scope at issuance. A name the platform does not know stops the whole request rather
+        than being quietly dropped, so a key can never come back holding less than you asked for.
+        Asking for none is permitted, and gives you a credential that authenticates and is turned
+        away everywhere.
+      </p>
+
+      {vocabulary.state === 'loading' && <Loading label="Asking which scopes exist" />}
       {vocabulary.state === 'failed' && vocabulary.error && (
         <Failed notice={vocabulary.error} onRetry={vocabulary.reload} />
       )}
       {vocabulary.state === 'forbidden' && vocabulary.error && (
-        <Failed notice={vocabulary.error} title="The scope vocabulary was refused" />
+        <Failed notice={vocabulary.error} title="The platform would not hand over its scope list" />
       )}
       {vocabulary.state === 'empty' && (
         <Empty
-          title="This platform publishes no scopes"
-          hint="That is not a loading state — the service answered with an empty vocabulary."
+          title="The scope list came back with nothing in it"
+          hint="The service replied; it simply named no scopes. This page has finished waiting. Until something is published here, a key minted in this console would authenticate and then be refused at every route it tried."
         />
       )}
       {vocabulary.state === 'ok' && vocabulary.data && (
@@ -70,8 +105,9 @@ export function PlatformPage() {
           <div className="dp-tablewrap">
             <table className="dp-table">
               <caption className="dp-table__caption">
-                Every scope this platform issues. Read from{' '}
-                <code className="cf-num">GET /v1/scopes</code>, which is public.
+                The whole vocabulary, fetched as this page loaded from{' '}
+                <code className="cf-num">GET /v1/scopes</code>. That route asks for no credential, so
+                you can settle what a key needs before you own one.
               </caption>
               <thead>
                 <tr>
@@ -99,10 +135,11 @@ export function PlatformPage() {
         </>
       )}
 
-      <h2 className="dp-h2">What is not finished</h2>
+      <h2 className="dp-h2">Rough edges you should hear about from us</h2>
       <p className="dp-para">
-        Stated here rather than discovered later. Each is a finding with the lines it was read from,
-        not a roadmap.
+        Better here than three days into an integration. Each entry names what somebody found, the
+        files to check it against, and what would settle it. None of it is a plan; all of it is the
+        code as it stands.
       </p>
       <dl className="dp-gaps">
         {KNOWN_GAPS.map((gap) => (
@@ -111,7 +148,7 @@ export function PlatformPage() {
             <dd className="dp-gap__body">
               <p>{gap.finding}</p>
               <p className="dp-gap__closes">
-                <strong>What would close it:</strong> {gap.closes}
+                <strong>Settled by:</strong> {gap.closes}
               </p>
               <p className="dp-gap__cites">
                 {gap.citations.map((citation) => (

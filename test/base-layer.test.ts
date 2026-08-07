@@ -100,11 +100,26 @@ describe('the stylesheet declares a base layer', () => {
     )
   })
 
-  it('declares the dark color-scheme, so form controls and scrollbars follow', () => {
-    assert.match(
+  it('declares NO color-scheme, because @cloudsforge/ui 1.1 owns that on <html>', () => {
+    /*
+     * THIS ASSERTION IS INVERTED FROM WHAT IT WAS, AND THE INVERSION IS THE POINT.
+     *
+     * It required `color-scheme: dark` here, and that was right while dark was the only scheme
+     * there was. 1.1 added a light one: `tokens.css` declares `color-scheme` on the
+     * `[data-cf-scheme]` scopes — that is, on `<html>` — and `index.html` selects `auto`, so a
+     * reader whose operating system asks for light now gets a light page.
+     *
+     * A declaration on `body` wins for the whole body subtree over the one on `<html>`. Left in
+     * place it would have kept every native control, every scrollbar and every date picker in this
+     * console drawn dark on a light page — the exact failure the original rule was written to
+     * prevent, arrived at from the other side. `test/meta.test.ts` asserts the replacement:
+     * `<meta name="color-scheme" content="dark light">`, which is what a browser reads before any
+     * stylesheet has arrived, and `data-cf-scheme="auto"` on `<html>`.
+     */
+    assert.doesNotMatch(
       body,
-      /(^|[;{\s])color-scheme\s*:\s*dark/,
-      'the `body` rule does not set `color-scheme: dark`; native widgets render light on a dark page.',
+      /(^|[;{\s])color-scheme\s*:/,
+      'the `body` rule declares color-scheme; it beats the per-scheme one tokens.css sets on <html>.',
     )
   })
 

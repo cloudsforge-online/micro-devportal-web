@@ -20,10 +20,11 @@ export function NotFoundPage() {
         <span className="dp-state__icon" aria-hidden="true">
           ◇
         </span>
-        <p className="dp-state__title">There is nothing at this address</p>
+        <p className="dp-state__title">No page exists at this address</p>
         <p className="dp-state__hint">
-          The server answered 404 for it, which is the truth — this is the app shell rendered
-          underneath that status, not a page pretending the address exists.
+          Our server returned a genuine 404, and you are reading the app drawn beneath it. Plenty of
+          sites answer every URL with a success and then show a message like this one; we would
+          rather your tools, and ours, could tell the difference. Pick up a thread again below.
         </p>
         <div className="dp-state__action">
           {NAV.map((item) => (

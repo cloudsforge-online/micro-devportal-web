@@ -74,23 +74,28 @@ export function WebhooksPage() {
   const endpoints = useResource(
     (signal) => listEndpoints(id, signal),
     (data) => data.endpoints.length,
-    'The webhook endpoints could not be loaded.',
+    'The endpoint list did not come back.',
     [id],
   )
 
   return (
     <>
       <h2 className="dp-h2">Webhook endpoints</h2>
+      <p className="dp-para">
+        Rather than polling us, give us an address and we will post events to it as they happen.
+        Each delivery is signed, retried on a widening interval when your service does not answer,
+        and recorded below whether it landed or not.
+      </p>
       <NewEndpoint projectId={id} onCreated={endpoints.reload} />
 
-      {endpoints.state === 'loading' && <Loading label="Reading the endpoints" />}
+      {endpoints.state === 'loading' && <Loading label="Fetching the endpoints" />}
       {(endpoints.state === 'failed' || endpoints.state === 'forbidden') && endpoints.error && (
         <Failed notice={endpoints.error} onRetry={endpoints.reload} />
       )}
       {endpoints.state === 'empty' && (
         <Empty
-          title="No webhook endpoints"
-          hint="Register one above to have events delivered to your own service."
+          title="Nothing is subscribed in this project"
+          hint="No address has been registered, so events happen and go nowhere. Use the form above to point us at your service."
         />
       )}
       {endpoints.state === 'ok' && endpoints.data && (
@@ -101,8 +106,8 @@ export function WebhooksPage() {
                 <Identifier value={endpoint.url} />
               </h3>
               <p className="dp-card__meta">
-                {endpoint.topics.join(', ')} · created {when(endpoint.createdAt)}
-                {endpoint.disabledAt !== null && ` · disabled ${when(endpoint.disabledAt)}`}
+                {endpoint.topics.join(', ')} · registered {when(endpoint.createdAt)}
+                {endpoint.disabledAt !== null && ` · switched off ${when(endpoint.disabledAt)}`}
               </p>
               {endpoint.description && <p className="dp-card__tagline">{endpoint.description}</p>}
               <EndpointControls
@@ -153,7 +158,7 @@ function NewEndpoint({ projectId, onCreated }: { projectId: string; onCreated: (
     )
     setCreated(result)
     return result
-  }, 'The endpoint could not be registered.')
+  }, 'The platform refused to register this address.')
 
   return (
     <>
@@ -180,9 +185,10 @@ function NewEndpoint({ projectId, onCreated }: { projectId: string; onCreated: (
             required
           />
           <span className="dp-field__help">
-            Absolute https. Loopback and link-local addresses are refused: this service dials the
-            address from inside its own network, so an unchecked one would let a customer aim it at
-            infrastructure that is not theirs.
+            A full https address. Loopback and link-local ranges are rejected, and the reason is
+            worth stating: we open this connection from inside our own network, so accepting any
+            address you typed would let one customer point our servers at machines belonging to
+            somebody else.
           </span>
         </label>
         <label className="dp-field">
@@ -194,8 +200,9 @@ function NewEndpoint({ projectId, onCreated }: { projectId: string; onCreated: (
             required
           />
           <span className="dp-field__help">
-            Separated by spaces or commas. At least one, and there is no wildcard — an endpoint that
-            received everything by default is an endpoint nobody meant to subscribe.
+            Split them with spaces or commas, and name at least one. No pattern stands for “all of
+            them”: an endpoint that quietly picked up every future event type is one nobody
+            deliberately signed up for.
           </span>
         </label>
         <fieldset className="dp-fieldset">
@@ -226,7 +233,9 @@ function NewEndpoint({ projectId, onCreated }: { projectId: string; onCreated: (
         </button>
       </form>
 
-      {register.error && <Failed notice={register.error} title="That endpoint was not registered" />}
+      {register.error && (
+        <Failed notice={register.error} title="No endpoint was registered, and nothing changed" />
+      )}
 
       {created?.secret && (
         <ShownOnce
@@ -272,11 +281,17 @@ function EndpointControls({
     const result = await rotateEndpointSecret(id, key)
     setRotated(result)
     return result
-  }, 'The secret could not be rotated.')
+  }, 'The rotation did not happen. Keep signing with the secret you have.')
 
-  const turnOff = useMutation(() => disableEndpoint(id), 'The endpoint could not be disabled.')
-  const turnOn = useMutation(() => enableEndpoint(id), 'The endpoint could not be re-enabled.')
-  const remove = useMutation(() => deleteEndpoint(id), 'The endpoint could not be deleted.')
+  const turnOff = useMutation(
+    () => disableEndpoint(id),
+    'The service did not switch this endpoint off.',
+  )
+  const turnOn = useMutation(
+    () => enableEndpoint(id),
+    'The service did not switch this endpoint back on.',
+  )
+  const remove = useMutation(() => deleteEndpoint(id), 'The service did not remove this endpoint.')
 
   return (
     <div className="dp-toolbar">
@@ -318,17 +333,24 @@ function EndpointControls({
 
       {disabled && (
         <Note tone="warn">
-          This endpoint is disabled and is receiving nothing. <strong>Enable</strong> puts it back —
-          the same URL, the same signing secret, the same delivery history. Events produced while it
-          was disabled were never queued for it and will not arrive afterwards, so anything missed in
-          that window has to be reconciled from your own side.
+          Nothing is being sent to this address. <strong>Enable</strong> brings it back exactly as
+          it was: same URL, same signing secret, same delivery history.{' '}
+          <strong>There is no backlog waiting for you.</strong> Anything that happened while the
+          endpoint was off was never queued for it, so it will not turn up once you switch it on —
+          the gap has to be closed from your own records.
         </Note>
       )}
 
-      {rotate.error && <Failed notice={rotate.error} title="The secret was not rotated" />}
-      {turnOff.error && <Failed notice={turnOff.error} title="That was not disabled" />}
-      {turnOn.error && <Failed notice={turnOn.error} title="That was not enabled" />}
-      {remove.error && <Failed notice={remove.error} title="That was not deleted" />}
+      {rotate.error && (
+        <Failed notice={rotate.error} title="Your existing signing secret is untouched" />
+      )}
+      {turnOff.error && (
+        <Failed notice={turnOff.error} title="This endpoint is still receiving deliveries" />
+      )}
+      {turnOn.error && (
+        <Failed notice={turnOn.error} title="This endpoint is still switched off" />
+      )}
+      {remove.error && <Failed notice={remove.error} title="The endpoint is still here" />}
 
       {rotated?.secret && (
         <ShownOnce
@@ -348,9 +370,9 @@ function EndpointControls({
               `devplatform/src/env.ts`) and a screen that guessed it would cause the outage it
               exists to prevent.
             */}
-            The previous secret keeps verifying for another {rotated.overlapMinutes} minutes, so
-            deploy this one before then. After that, deliveries signed with the old secret will not
-            verify.
+            You have {rotated.overlapMinutes} minutes during which signatures from the old secret
+            are still honoured. Get this value into your service inside that window. Once it closes,
+            anything your code verifies with the previous secret will be rejected.
           </p>
         </ShownOnce>
       )}
@@ -379,39 +401,40 @@ function Deliveries({ endpointId }: { endpointId: string }) {
   const deliveries = useResource(
     (signal) => listDeliveries(endpointId, signal),
     (data) => data.deliveries.length,
-    'The deliveries could not be loaded.',
+    'The delivery log did not come back.',
     [endpointId],
   )
 
   return (
     <details className="dp-details">
-      <summary className="dp-details__summary">Recent deliveries</summary>
-      {deliveries.state === 'loading' && <Loading label="Reading the deliveries" />}
+      <summary className="dp-details__summary">Delivery log</summary>
+      {deliveries.state === 'loading' && <Loading label="Fetching the delivery log" />}
       {(deliveries.state === 'failed' || deliveries.state === 'forbidden') && deliveries.error && (
         <Failed notice={deliveries.error} onRetry={deliveries.reload} />
       )}
       {deliveries.state === 'empty' && (
         <Empty
-          title="Nothing has been delivered here"
-          hint="No event matching this endpoint’s topics has been produced since it was registered."
+          title="We have never had anything to send here"
+          hint="Since this endpoint was registered, no event matching its topics has occurred. An empty log points at the topics you chose, not at a delivery problem."
         />
       )}
       {deliveries.state === 'ok' && deliveries.data && (
         <div className="dp-tablewrap">
           <table className="dp-table">
             <caption className="dp-table__caption">
-              The newest fifty. “Abandoned” assumes the default attempt ceiling of{' '}
-              {ASSUMED_MAX_ATTEMPTS}; the deployed value is not on the wire, so this is the one
-              number on this page that is inferred rather than read.
+              The fifty most recent attempts. Whether a row reads “Abandoned” depends on the attempt
+              ceiling, and we assume the default of {ASSUMED_MAX_ATTEMPTS} because the running value
+              is not returned to a browser. Every other figure in this table was read from the
+              service; that one is a guess, and it is the only one.
             </caption>
             <thead>
               <tr>
                 <th scope="col">State</th>
                 <th scope="col">Topic</th>
-                <th scope="col">Attempts</th>
-                <th scope="col">Last status</th>
-                <th scope="col">Next attempt</th>
-                <th scope="col">Last error</th>
+                <th scope="col">Tries</th>
+                <th scope="col">Your reply</th>
+                <th scope="col">Next try</th>
+                <th scope="col">What went wrong</th>
               </tr>
             </thead>
             <tbody>

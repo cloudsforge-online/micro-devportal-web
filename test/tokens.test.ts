@@ -123,12 +123,47 @@ describe('the stylesheet names only tokens that exist', () => {
       for (const right of [
         '--cf-line',
         '--cf-line-strong',
-        '--cf-danger',
         '--cf-warn',
         '--cf-font-sans',
+        // The two-step pairs this stylesheet now names explicitly rather than through the
+        // `--cf-success`/`--cf-danger` aliases. Both halves of each pair, because the whole point
+        // of the distinction is that a fill and a word take DIFFERENT ones.
+        '--cf-good',
+        '--cf-good-text',
+        '--cf-warn-text',
+        '--cf-critical',
+        '--cf-critical-text',
+        '--cf-accent',
+        '--cf-accent-text',
       ]) {
         assert.ok(defined.has(right), `${right} is not defined; the stylesheet is built on it`)
       }
+    })
+
+    it('uses the TEXT step wherever a token is a colour and the BASE step wherever it is not', () => {
+      /*
+       * THE RULE @cloudsforge/ui 1.1 EXISTS TO ENFORCE, checked on this file rather than trusted.
+       *
+       * `--cf-accent` and `--cf-critical` are validated at 3:1 — the WCAG floor for a border, a
+       * fill, an outline or a stroke. `--cf-accent-text` and `--cf-critical-text` are the 4.5:1
+       * text step. A `color:` taking the base step is illegal text that looks fine to whoever wrote
+       * it, which is precisely why it needs a machine to notice.
+       *
+       * Scanned as declarations rather than by eye: every `color: var(--cf-…)` in the file, with
+       * the four base severity/accent names refused.
+       */
+      const BASE_ONLY = ['--cf-accent', '--cf-good', '--cf-warn', '--cf-critical']
+      const colours = [...CSS.matchAll(/(?<!-)\bcolor:\s*var\((--cf-[a-z0-9-]+)\)/g)].map(
+        (m) => m[1] ?? '',
+      )
+      assert.ok(colours.length >= 10, `found ${colours.length} color declarations`)
+      const wrong = colours.filter((name) => BASE_ONLY.includes(name))
+      assert.deepEqual(
+        wrong,
+        [],
+        `src/styles.css sets color: to ${wrong.join(', ')} — the 3:1 fill step. ` +
+          'The 4.5:1 text step is the same name with `-text` on the end.',
+      )
     })
   }
 })

@@ -216,7 +216,7 @@ describe('BJ-DEV — the developer platform', () => {
         assert.ok(s.document.querySelector('[role="dialog"]'), 'the dialog closed on Escape')
 
         // And the acknowledgement is disabled until the reader has copied it or ticked the box.
-        const done = s.byRole('button', /done/i)
+        const done = s.byRole('button', /lose sight of it/i)
         assert.ok(done.hasAttribute('disabled'), 'the dialog could be dismissed without reading it')
         await s.click(done)
         assert.equal(acknowledged, 0, 'a disabled acknowledgement fired anyway')
@@ -224,7 +224,7 @@ describe('BJ-DEV — the developer platform', () => {
         // Ticking the box is a claim about the reader, and it is what arms the control.
         const box = s.allByRole('checkbox')[0] as Element
         await s.click(box)
-        const armed = s.byRole('button', /done/i)
+        const armed = s.byRole('button', /lose sight of it/i)
         assert.ok(!armed.hasAttribute('disabled'), 'ticking the box did not arm the acknowledgement')
         await s.click(armed)
         assert.equal(acknowledged, 1)
@@ -236,11 +236,11 @@ describe('BJ-DEV — the developer platform', () => {
     await withScreen(modal(), { url: `${ORIGIN}/`, routes: {} }, async (s) => {
       const dialog = s.document.querySelector('[role="dialog"]') as Element
       const text = s.textOf(dialog)
-      assert.match(text, /shown once/i)
+      assert.match(text, /only time this secret is shown/i)
       assert.match(text, /cannot be recovered/i)
       assert.match(
         text,
-        /nothing here or anywhere else can print it a second time/i,
+        /no request to us — can produce the value a second time/i,
         'the modal says "please copy this" rather than what is true: the credential is live and ' +
           'nobody can tell you what it is',
       )
@@ -327,8 +327,12 @@ describe('BJ-DEV — the developer platform', () => {
           null,
           'a replay opened a "copy this now" modal over a null secret',
         )
-        assert.match(s.text(), /repeated one that had already completed/i)
-        assert.match(s.text(), /revoke this one and issue another/i, 'the reader is left with no next step')
+        assert.match(s.text(), /already handled this exact request/i)
+        assert.match(
+          s.text(),
+          /withdraw this key and create a replacement/i,
+          'the reader is left with no next step',
+        )
         // And not an error: a developer who read it as one would issue a second key nobody needs.
         assert.equal(
           s.document.querySelector('[role="alert"]:not(.dp-once__note)'),
@@ -516,7 +520,7 @@ describe('BJ-DEV — the developer platform', () => {
         assert.deepEqual(raise.map((el) => s.textOf(el)), [], 'the page offers to raise a quota')
         assert.match(
           s.text(),
-          /raising it is CloudsForge’s decision|to raise one, ask CloudsForge/i,
+          /pushing one up belongs to CloudsForge|ask CloudsForge when you need more headroom/i,
           'the page removes the control without saying who can raise a limit, which leaves a ' +
             'reader with no route at all',
         )
@@ -768,7 +772,7 @@ describe('BJ-A11Y — accessibility', () => {
         const box = s.allByRole('checkbox')[0] as Element
         ;(box as unknown as HTMLElement).focus()
         await s.click(box)
-        const done = s.byRole('button', /done/i)
+        const done = s.byRole('button', /lose sight of it/i)
         assert.ok(!done.hasAttribute('disabled'), 'the acknowledgement is not reachable by keyboard')
       },
     )

@@ -210,7 +210,7 @@ describe('the pages say the things they must', () => {
     // was meant to inform.
     const keys = codeOf(read('src/pages/keys.tsx'))
     assert.match(keys, /SHOWN_ONCE/, 'the key form does not carry the service’s sentence')
-    assert.match(keys, /Have somewhere to put it before you press the button/)
+    assert.match(keys, /Open your secret manager first/)
   })
 
   it('the key screen says revocation cannot be undone', () => {
@@ -241,7 +241,7 @@ describe('the pages say the things they must', () => {
     // And the sentence that stops somebody waiting for a backlog that was never queued.
     assert.match(
       webhooks,
-      /were never queued for it/i,
+      /There is no backlog waiting for you/i,
       'the screen does not say that events produced while disabled are not replayed',
     )
   })
@@ -278,7 +278,7 @@ describe('the pages say the things they must', () => {
     assert.doesNotMatch(usage, /setQuota|putQuota|raiseLimit/, 'a raise primitive is named here')
     assert.match(
       usage,
-      /Raising a limit is not something this console does/,
+      /No allowance can be increased from this console/,
       'the screen does not say who may raise a limit',
     )
     // The input is bounded BELOW the current value. `max` is advisory in a browser, which is why

@@ -35,25 +35,25 @@ export function OrganisationPage() {
   const organisation = useResource(
     (signal) => getOrganisation(id, signal),
     () => 1,
-    'That organisation could not be loaded.',
+    'The organisation did not come back from the service.',
     [id],
   )
   const projects = useResource(
     (signal) => listProjects(id, signal),
     (data) => data.projects.length,
-    'The projects could not be loaded.',
+    'The project list did not come back.',
     [id],
   )
 
   return (
     <section className="dp-page">
-      {organisation.state === 'loading' && <Loading label="Reading the organisation" />}
+      {organisation.state === 'loading' && <Loading label="Fetching the organisation" />}
       {(organisation.state === 'failed' || organisation.state === 'forbidden') &&
         organisation.error && (
           <Failed
             notice={organisation.error}
             onRetry={organisation.reload}
-            title="No developer organisation at this address"
+            title="This address holds no organisation you can open"
           />
         )}
 
@@ -62,35 +62,37 @@ export function OrganisationPage() {
           <header className="dp-page__head">
             <h1 className="dp-page__title">{organisation.data.organisation.name}</h1>
             <p className="dp-page__lead">
-              <Identifier value={organisation.data.organisation.slug} /> · enrolled{' '}
+              <Identifier value={organisation.data.organisation.slug} /> · on the platform since{' '}
               {when(organisation.data.organisation.createdAt)}
             </p>
           </header>
 
           {organisation.data.organisation.status === 'suspended' && (
             <Note tone="crit">
-              This organisation is suspended. Every API key it holds has been revoked and is refused
-              at authentication. The rows below are kept so that reinstating the organisation is one
-              change rather than a re-issue of every credential it ever handed out.
+              A suspension is in force here. Every credential this organisation owns has been
+              withdrawn and is being turned away at authentication, so any integration running
+              against it has stopped. What you see below is deliberately preserved: lifting a
+              suspension is meant to be a single act, not a scramble to reissue every key.
             </Note>
           )}
 
           <h2 className="dp-h2">Projects</h2>
           <p className="dp-para">
-            A project owns keys, webhook endpoints, OAuth clients and quotas. Every project is
-            created with <strong>two environments</strong>, <code className="cf-num">live</code> and{' '}
-            <code className="cf-num">test</code>, and with its default quotas, in one transaction —
-            so there is never a project whose first request is unmetered.
+            Projects are where credentials, webhook endpoints, OAuth clients and quotas actually
+            live. Each one arrives with <strong>two environments</strong> —{' '}
+            <code className="cf-num">live</code> and <code className="cf-num">test</code> — and its
+            starting limits, all written in a single transaction. No project ever exists in a state
+            where its first call goes uncounted.
           </p>
 
-          {projects.state === 'loading' && <Loading label="Reading the projects" />}
+          {projects.state === 'loading' && <Loading label="Fetching the projects" />}
           {(projects.state === 'failed' || projects.state === 'forbidden') && projects.error && (
             <Failed notice={projects.error} onRetry={projects.reload} />
           )}
           {projects.state === 'empty' && (
             <Empty
-              title="This organisation has no projects yet"
-              hint="Create one below. Nothing can be issued until there is a project to issue it in."
+              title="There is nowhere here to put a credential"
+              hint="No project has been set up under this organisation. Use the form below to make the first — keys, webhooks and quotas all hang off a project, so nothing can be issued until one exists."
             />
           )}
           {projects.state === 'ok' && projects.data && (
@@ -136,7 +138,7 @@ function NewProject({ orgId, onCreated }: { orgId: string; onCreated: () => void
   // the state the hook has just set, so it reads the PREVIOUS attempt's error and keeps a spent key.
   const create = useIdempotentMutation(
     (key: string) => createProject({ orgId, name, slug }, key),
-    'The project could not be created.',
+    'The platform declined to create the project.',
   )
 
   return (
@@ -173,19 +175,21 @@ function NewProject({ orgId, onCreated }: { orgId: string; onCreated: () => void
             required
           />
           <span className="dp-field__help">
-            Unique within this organisation. 3 to 64 characters of lowercase letters, digits and
-            hyphens.
+            No two projects in this organisation may share one. Between 3 and 64 characters of
+            lowercase letters, digits and hyphens.
           </span>
         </label>
         <button type="submit" className="cf-btn cf-btn--primary" disabled={create.busy}>
           {create.busy ? 'Creating…' : 'Create project'}
         </button>
       </form>
-      {create.error && <Failed notice={create.error} title="That project was not created" />}
+      {create.error && (
+        <Failed notice={create.error} title="No project was created, and nothing changed" />
+      )}
       {create.result?.replayed && (
         <Note tone="warn">
-          That request repeated one that had already completed, so the project was not created a
-          second time.
+          We had already dealt with this exact request, so you are looking at the project it made
+          the first time rather than a duplicate.
         </Note>
       )}
     </>
