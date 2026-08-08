@@ -293,6 +293,104 @@ describe('the pages say the things they must', () => {
     assert.doesNotMatch(platform, /coming soon|on the roadmap|shortly/i)
   })
 
+  /**
+   * ══════════════════════════════════════════════════════════════════════════════════════════════
+   * NO SCREEN COUNTS `KNOWN_GAPS` IN PROSE — docs/ecosystem/32-roadmap-ui-and-content.md §4.3.
+   *
+   * §1.1 is the rule: "No number goes on a page that is not checkable against something real. A
+   * figure is admissible if it is read at runtime out of a response the page has already fetched,
+   * or if a test binds it to the source constant it describes." `<h2>Two limits worth knowing
+   * before you start</h2>` was neither. It was arithmetic over an array in a different file,
+   * performed once, by hand, in a heading.
+   *
+   * And the array shrinks by design. `src/lib/devplatform.ts` carries two block comments recording
+   * gaps deleted the moment they closed — GATEWAY_GAP and REVIEW_GAP — each with the same
+   * reasoning: "A findings list that keeps its resolved entries is a list somebody stops reading."
+   * Both deletions changed the count. Neither touched the heading, and neither could have been
+   * expected to: closing a gap is a commit in the library, and the heading is in a page.
+   *
+   * So the count is forbidden rather than pinned. Pinning it to `KNOWN_GAPS.length` would spell
+   * the number back out on screen and hand the next person a heading that changes text when a gap
+   * closes — which is a worse artefact than a heading that never counted.
+   *
+   * The second assertion is the empty case, which is the one this section is heading towards.
+   * `KNOWN_GAPS.map` over an empty array renders nothing at all, so the day the last gap closes an
+   * unguarded page shows a heading and an explanatory paragraph over blankness. On a developer
+   * console that reads as a fetch that failed, not as good news — §1.2's rule, "render a named
+   * hole, never a plausible screen over nothing", read from the other direction.
+   * ══════════════════════════════════════════════════════════════════════════════════════════════
+   */
+  describe('the known-gaps section counts nothing and vanishes when there is nothing to say', () => {
+    const platform = codeOf(read('src/pages/platform.tsx'))
+
+    /**
+     * A quantity, as a word or as digits, in front of the noun this section is made of.
+     *
+     * `\w+\s+` optionally between them catches "two known limits" and "3 outstanding gaps".
+     * Articles are absent on purpose: "a limit" is English, not a count, and a scan that fired on
+     * English is a scan somebody switches off.
+     */
+    const COUNTED_GAPS =
+      /\b(?:zero|one|two|three|four|five|six|seven|eight|nine|ten|\d+)\s+(?:\w+\s+)?(?:limits?|gaps?|caveats?|findings?)\b/i
+
+    it('the pattern matches the heading it was written for, and not ordinary prose', () => {
+      // The guard on the guard: if this stops matching the original defect, the check below is
+      // green for no reason.
+      assert.match('Two limits worth knowing before you start', COUNTED_GAPS)
+      assert.match('3 gaps', COUNTED_GAPS)
+      assert.match('two known limits', COUNTED_GAPS)
+      assert.doesNotMatch('Limits worth knowing before you start', COUNTED_GAPS)
+      assert.doesNotMatch('Each is the platform as it stands today', COUNTED_GAPS)
+    })
+
+    it('no heading or paragraph on the platform page states how many gaps there are', () => {
+      assert.doesNotMatch(
+        platform,
+        COUNTED_GAPS,
+        'this page counts KNOWN_GAPS in prose. The array is edited in src/lib/devplatform.ts, ' +
+          'which has already deleted two entries without opening this file; drop the numeral ' +
+          'instead — "Limits worth knowing before you start" costs nothing.',
+      )
+      assert.match(
+        platform,
+        /<h2 className="dp-h2">Limits worth knowing before you start<\/h2>/,
+        'the section heading was renamed; keep it free of a count',
+      )
+      // "Both" is the same defect spelled without a digit: it is a count of two, and it is wrong
+      // the moment the array holds one entry or three.
+      assert.doesNotMatch(platform, /\bBoth are the platform\b/, 'the lead-in still counts two')
+    })
+
+    it('the heading and its paragraph are inside the guard, not just the list', () => {
+      // Guarding only `KNOWN_GAPS.map` would leave the heading and the explanatory paragraph
+      // rendering over nothing, which is the exact state this check exists to make impossible.
+      const guard = platform.indexOf('KNOWN_GAPS.length > 0 &&')
+      const heading = platform.indexOf('Limits worth knowing before you start')
+      const list = platform.indexOf('KNOWN_GAPS.map(')
+      assert.ok(guard >= 0, 'the section is not guarded on KNOWN_GAPS being non-empty')
+      assert.ok(heading > guard, 'the heading is outside the guard and renders over an empty list')
+      assert.ok(list > guard, 'the list is outside the guard')
+    })
+
+    it('and the array it guards is the one the page draws from', () => {
+      // The guard is only worth anything while it names the array actually rendered. A stale
+      // identifier would not typecheck, but a SECOND array would, and the section would then be
+      // gated on a list it does not draw.
+      //
+      // Deliberately NOT asserted here: that KNOWN_GAPS is non-empty. The day it empties is the
+      // day this whole section is correctly absent, and a test that went red on it would be a
+      // suite punishing the closure of the last gap — which is the behaviour this file is
+      // arguing against.
+      assert.match(platform, /import \{ getScopes, KNOWN_GAPS \} from '\.\.\/lib\/devplatform\.ts'/)
+      const guarded = platform.slice(platform.indexOf('KNOWN_GAPS.length > 0 &&'))
+      assert.equal(
+        (guarded.match(/KNOWN_GAPS/g) ?? []).length,
+        2,
+        'the guard and the map must name the same array and nothing else may appear between them',
+      )
+    })
+  })
+
   it('nothing anywhere promises a feature that does not exist', () => {
     for (const file of FILES) {
       assert.doesNotMatch(file.code, /\bcoming soon\b/i, file.name)

@@ -134,21 +134,40 @@ export function PlatformPage() {
         </>
       )}
 
-      <h2 className="dp-h2">Two limits worth knowing before you start</h2>
-      <p className="dp-para">
-        Better here than three days into an integration. Both are the platform as it stands today,
-        not a plan, and both have something you can do about them.
-      </p>
-      <dl className="dp-gaps">
-        {KNOWN_GAPS.map((gap) => (
-          <div className="dp-gap" key={gap.id}>
-            <dt className="dp-gap__title">{gap.title}</dt>
-            <dd className="dp-gap__body">
-              <p>{gap.finding}</p>
-            </dd>
-          </div>
-        ))}
-      </dl>
+      {/*
+        THE HEADING COUNTS NOTHING, AND THE SECTION DOES NOT EXIST WHEN THE ARRAY IS EMPTY.
+
+        It read "Two limits worth knowing before you start", and the paragraph under it said
+        "Both". `KNOWN_GAPS` is a list that shrinks by design — `src/lib/devplatform.ts` carries
+        two block comments recording gaps that were deleted the day they closed, GATEWAY_GAP and
+        REVIEW_GAP, and each of those deletions changed the count without touching this heading.
+        A heading that is arithmetic over a list somebody else edits is a heading that goes wrong
+        on a commit that never opens this file.
+
+        The empty case is the other half. `KNOWN_GAPS.map` over an empty array renders nothing, so
+        the day the last gap closes this page would have shown a heading and an explanatory
+        paragraph over no content at all — which reads as a fetch that failed rather than as good
+        news. Guarding the whole block, heading included, is the only version with no bad state.
+      */}
+      {KNOWN_GAPS.length > 0 && (
+        <>
+          <h2 className="dp-h2">Limits worth knowing before you start</h2>
+          <p className="dp-para">
+            Better here than three days into an integration. Each is the platform as it stands
+            today, not a plan, and each has something you can do about it.
+          </p>
+          <dl className="dp-gaps">
+            {KNOWN_GAPS.map((gap) => (
+              <div className="dp-gap" key={gap.id}>
+                <dt className="dp-gap__title">{gap.title}</dt>
+                <dd className="dp-gap__body">
+                  <p>{gap.finding}</p>
+                </dd>
+              </div>
+            ))}
+          </dl>
+        </>
+      )}
     </section>
   )
 }
