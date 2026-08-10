@@ -24,10 +24,11 @@ import {
   CookieBanner,
   MainRegion,
   SkipLink,
+  miningOnHub,
 } from '@cloudsforge/ui'
 import { applyHead } from '@cloudsforge/ui/seo'
 import { NavLink, Outlet, useLocation } from 'react-router-dom'
-import { PRODUCT } from '../lib/hosts.ts'
+import { PRODUCT, hosts } from '../lib/hosts.ts'
 import { metaFor } from '../lib/meta.ts'
 import { NAV } from '../lib/routes.ts'
 import { useSession } from '../lib/auth.tsx'
@@ -46,11 +47,32 @@ export function AppShell({ unregistered = false }: { unregistered?: boolean }) {
         works and does not.
       */}
       <SkipLink />
+      {/*
+        `mining` is the design system's own control, and the bar places it immediately before the
+        account menu, on every address this console serves.
+
+        The owner's report was that starting a browser miner is "hidden deep in mining page", so it
+        now has a seat in the one piece of chrome every surface renders. What this surface hands the
+        bar is `miningOnHub()`, the `elsewhere` state, and the reason is an origin boundary rather
+        than a preference: the miner is a WebSocket and two Web Workers on ONE origin, `hub.<apex>`
+        is not this one, and nothing in this bundle can start, observe or stop a session there. A
+        Start button here would be a control that cannot do what its label says.
+
+        So it is an ANCHOR — middle-clickable, openable in a new tab, copyable into a ticket, and
+        legible to everything that reads links. A destination expressed as an onClick is legible to
+        nothing, which is a poor thing to ship from the surface that documents this estate's URLs.
+
+        `hosts().hub` rather than a written-out URL. This bundle is served from localhost, from a
+        preview host and from the apex, and the notice below in `MainRegion` exists precisely
+        because a wrong apex silently mis-derives every estate address; a literal here would be the
+        same defect chosen deliberately.
+      */}
       <CloudsForgeBar
         current={PRODUCT}
         account={account}
         onSignIn={() => signIn()}
         onSignOut={signOut}
+        mining={miningOnHub(hosts().hub)}
       />
       {/*
         The sub-nav is sticky at exactly `var(--cf-bar-h)` — the bar's own height token, not a
