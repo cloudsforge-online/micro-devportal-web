@@ -40,6 +40,22 @@ const TOKENS = [process.env['CLOUDSFORGE_UI_TOKENS'], at('../ui/packages/ui/src/
   .filter((v): v is string => Boolean(v))
   .find((p) => existsSync(p))
 
+/**
+ * `ui.css` out of the same checkout, because a CLASS the design system does not declare fails
+ * exactly as quietly as a property it does not declare.
+ *
+ * This file has always checked the properties and never the classes, and the gap is not
+ * theoretical: `micro-explorer-web` reached for `.cf-input`, `.cf-select` and `.cf-btn--primary`
+ * by reflex, ui.css declared none of the three, and the controls rendered with the browser's own
+ * chrome on a dark substrate with nothing anywhere reporting it. Now that this repository's
+ * section strip is a shared component rather than a local block, the class names it hands that
+ * component are load-bearing in exactly the same way.
+ *
+ * Derived from `TOKENS` rather than resolved independently, so the two halves can never end up
+ * reading different checkouts and disagreeing about what upstream contains.
+ */
+const UI_CSS = TOKENS?.replace(/tokens\.css$/, 'ui.css')
+
 /** Every `--cf-*` the stylesheet READS. */
 function referenced(): string[] {
   return [...new Set([...CSS.matchAll(/var\((--cf-[a-z0-9-]+)/g)].map((m) => m[1] ?? ''))].sort()
@@ -163,6 +179,89 @@ describe('the stylesheet names only tokens that exist', () => {
         [],
         `src/styles.css sets color: to ${wrong.join(', ')} — the 3:1 fill step. ` +
           'The 4.5:1 text step is the same name with `-text` on the end.',
+      )
+    })
+  }
+})
+
+describe('the section strip is the design system’s, and this repository keeps no copy', () => {
+  if (UI_CSS === undefined || !existsSync(UI_CSS)) {
+    // Same reasoning as the skip above, and deliberately the same opening words: ci.yml greps the
+    // output for `SKIPPED: no micro-ui checkout` and fails the build if it appears on a runner
+    // that checked micro-ui out, so this half is covered by that guard too rather than needing a
+    // second one.
+    it('SKIPPED: no micro-ui checkout — CI checks one out and requires this to run', (t) => {
+      t.skip('micro-ui is not checked out; ui.css was never read')
+    })
+  } else {
+    const ui = readFileSync(UI_CSS, 'utf8')
+
+    it('reads a ui.css with classes in it', () => {
+      const all = new Set([...ui.matchAll(/\.(cf-[a-z0-9_-]+)/g)].map((m) => m[1] ?? ''))
+      assert.ok(all.size >= 20, `found ${all.size} cf- classes in ui.css`)
+    })
+
+    it('the shared sub-nav exists and the local copy is gone', () => {
+      /*
+       * Both halves, off a real census.
+       *
+       * Measured 2026-08-10: ten frontends declared the section strip in their own stylesheet
+       * under six class prefixes, from what was plainly one original. This repository's copy was
+       * among the better ones — it scrolled (`overflow-x: auto` on the inner, `white-space: nowrap`
+       * on the link) and it took its measure from `--cf-max-w` rather than the 76rem five of the
+       * ten wrote — and it had still drifted where a private copy always drifts:
+       * `.dp-subnav__link.is-active` marked the current section in ink and underline only, where
+       * the estate's rule is three channels, and its gutter stayed `--cf-space-xl` under 560px
+       * while the bar directly above it narrowed to `--cf-space-md`.
+       *
+       * The shared classes must EXIST, because a `className` naming a class ui.css does not
+       * declare fails as silently as an undefined custom property. And the local block must be
+       * GONE, because the whole point of adopting a shared thing is that there is no second copy
+       * left to age beside it.
+       */
+      const declared = new Set([...ui.matchAll(/\.(cf-[a-z0-9_-]+)/g)].map((m) => m[1] ?? ''))
+      for (const present of [
+        'cf-subnav',
+        'cf-subnav__inner',
+        'cf-subnav__link',
+        'cf-subnav__link--current',
+      ]) {
+        assert.ok(declared.has(present), `.${present} is missing from ui.css`)
+      }
+
+      // Not one `.dp-subnav*` selector, not the block and not an element of it. `CSS` has had its
+      // comments stripped, so the note in src/styles.css explaining the deletion does not match —
+      // the same reason that stripping exists at the top of this file.
+      const survivors = [...CSS.matchAll(/\.dp-subnav[a-z0-9_-]*/g)].map((m) => m[0])
+      assert.deepEqual(
+        survivors,
+        [],
+        `src/styles.css still declares ${survivors.join(', ')}; the strip is SubNav's now`,
+      )
+
+      /*
+       * And the modifier really did move: `is-active` was this repository's spelling for the
+       * current section and the shared one is `cf-subnav__link--current`.
+       *
+       * SCOPED TO `subnav`, NOT A BLANKET BAN ON `is-active`. This stylesheet legitimately spells
+       * one other thing that way — `.dp-sections__link.is-active`, the tab strip INSIDE a single
+       * project's page (`src/pages/project.tsx`), which is a different control: it is not sticky,
+       * it takes no measure, it is labelled "Project sections", and it is nothing `SubNav` claims
+       * to be. A check that goes red on a correct file is a check somebody deletes.
+       */
+      const stale = [...CSS.matchAll(/\.[a-z0-9_-]*subnav[a-z0-9_-]*\.is-active/g)].map((m) => m[0])
+      assert.deepEqual(stale, [], `${stale.join(', ')} is the local current-section marker, back`)
+    })
+
+    it('does not reach back in and restyle the shared strip locally', () => {
+      // The other way a private copy comes back: not as `.dp-subnav` but as a local override of
+      // `.cf-subnav*`, which is worse, because it drifts from the shared rule while claiming its
+      // name. Anything genuinely local to this surface gets a `dp-` class of its own.
+      const overrides = [...CSS.matchAll(/\.cf-subnav[a-z0-9_-]*\s*(?:,|\{|:)/g)].map((m) => m[0])
+      assert.deepEqual(
+        overrides,
+        [],
+        `src/styles.css restyles ${overrides.join(', ')}; that is the drift being removed`,
       )
     })
   }

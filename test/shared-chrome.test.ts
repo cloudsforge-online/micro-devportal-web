@@ -33,7 +33,9 @@ import assert from 'node:assert/strict'
 import { test } from 'node:test'
 import { AccountMenu, CloudsForgeBar, ProductSwitcher } from '@cloudsforge/ui'
 import { createElement as h } from 'react'
+import { App } from '../src/app.tsx'
 import { PRODUCT } from '../src/lib/hosts.ts'
+import { NAV } from '../src/lib/routes.ts'
 import { withScreen, type Screen } from './dom.ts'
 
 /**
@@ -104,4 +106,74 @@ test('ProductSwitcher and AccountMenu also render standing alone', async () => {
     s.byRole('button', 'Sign in')
     s.clean('AccountMenu alone')
   })
+})
+
+/* ══════════════════════════════════════════════════════════════════════════════════════════════
+   AND THE SECTION STRIP UNDER THE BAR IS SHARED TOO.
+
+   The row above is `CloudsForgeBar`; the row below it used to be a `.dp-subnav` this repository
+   drew itself, and is now `SubNav` from the same package. `test/tokens.test.ts` proves the local
+   rules are gone from the stylesheet and that the shared classes exist upstream. Neither of those
+   proves the app RENDERS the shared strip: a stylesheet with no `.dp-subnav` in it and a shell
+   still emitting `className="dp-subnav"` passes both, and the result is an unstyled row of links.
+   So this mounts the real `App` and looks at what came out.
+
+   ── Why this addresses elements by CLASS, which `test/dom.ts` otherwise forbids ────────────────
+
+   That rule is right and this is the exception that proves it. The shared strip and the local copy
+   render the IDENTICAL accessible tree — a navigation landmark named "Sections" containing links —
+   so a role-and-name assertion passes against all ten of the estate's drifted copies and against
+   this one before the change. The class name is the only thing on screen that distinguishes the
+   shared implementation from a private one, which makes it the subject here rather than an
+   implementation detail leaking into a test.
+   ══════════════════════════════════════════════════════════════════════════════════════════════ */
+
+const ORIGIN = 'https://developers.cloudsforge.online'
+
+test('the sub-nav on screen is the shared strip, and every section link is a shared link', async () => {
+  // `GET /v1/scopes` is what the index reads. Stubbed empty: this test is about the chrome around
+  // the page, and the page's own content has its own scenarios in test/journeys.test.ts.
+  await withScreen(
+    h(App),
+    { url: `${ORIGIN}/`, routes: { 'GET /v1/scopes': { body: { scopes: [] } } } },
+    async (s) => {
+      await s.settle(30)
+
+      const nav = s.document.querySelector('nav.cf-subnav')
+      assert.ok(nav, 'the section strip is not `SubNav` — no nav.cf-subnav in the document')
+      assert.equal(
+        nav.getAttribute('aria-label'),
+        'Sections',
+        'this repository’s own wording for the landmark did not survive the move',
+      )
+      assert.ok(nav.querySelector('.cf-subnav__inner'), 'the strip has no shared inner measure')
+
+      // The local block is gone from the stylesheet; it must be gone from the DOM as well, or the
+      // markup is naming rules that no longer exist.
+      assert.equal(
+        s.document.querySelector('[class*="dp-subnav"]'),
+        null,
+        'something still renders a dp-subnav class; the rules behind it were deleted',
+      )
+
+      // Every section, and every one of them wearing the shared link class. Counted against `NAV`
+      // rather than a number typed here, so adding a section cannot silently escape the check.
+      const links = [...nav.querySelectorAll('a')]
+      assert.equal(links.length, NAV.length, `the strip renders ${links.length} of ${NAV.length}`)
+      for (const link of links) {
+        assert.ok(
+          link.classList.contains('cf-subnav__link'),
+          `“${s.textOf(link)}” is not a shared sub-nav link`,
+        )
+      }
+
+      // The current section, in the shared spelling. `is-active` was this repository's name for it
+      // and nothing upstream styles that, so a link still asking for it would be a section marked
+      // as current in no channel at all.
+      const current = [...nav.querySelectorAll('.cf-subnav__link--current')]
+      assert.equal(current.length, 1, 'exactly one section is the current one')
+      assert.equal(s.textOf(current[0] as Element).trim(), 'The platform')
+      assert.equal(nav.querySelector('.is-active'), null, 'the local current-section marker is back')
+    },
+  )
 })
