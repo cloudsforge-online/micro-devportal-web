@@ -24,6 +24,7 @@ import {
   CookieBanner,
   MainRegion,
   SkipLink,
+  SubNav,
   miningOnHub,
 } from '@cloudsforge/ui'
 import { applyHead } from '@cloudsforge/ui/seo'
@@ -75,23 +76,37 @@ export function AppShell({ unregistered = false }: { unregistered?: boolean }) {
         mining={miningOnHub(hosts().hub)}
       />
       {/*
-        The sub-nav is sticky at exactly `var(--cf-bar-h)` — the bar's own height token, not a
-        number copied out of it. When the bar's height changes, this moves with it.
+        THE SECTION STRIP IS THE SHARED ONE NOW, AND THE LOCAL `.dp-subnav*` RULES ARE GONE WITH IT.
+
+        The strip itself — sticky at the bar's own `--cf-bar-h`, the bar's measure, the horizontal
+        scroll, the narrow-viewport gutter, the three-channel current marker — is `SubNav` from
+        @cloudsforge/ui. Measured 2026-08-10 across the estate: ten frontends declared this row in
+        their own stylesheet under six class prefixes, from what was plainly one original that had
+        then been edited in ten places.
+
+        This copy had drifted in two ways a reader can see. `.dp-subnav__link.is-active` marked the
+        current section in TWO channels, ink and underline, where the estate's standing rule is
+        three; the shared modifier adds the weight. And the gutter was `--cf-space-xl` at every
+        width while `.cf-bar__inner` above it narrows to `--cf-space-md` under 560px, so on a phone
+        the second row of the header sat 6px inboard of the first on each side.
+
+        `aria-label` stays "Sections" — this repo's own wording, passed through as `label`. Only the
+        strip is homogenised, not the sentence a screen reader reads.
       */}
-      <nav className="dp-subnav" aria-label="Sections">
-        <div className="dp-subnav__inner">
-          {NAV.map((item) => (
-            <NavLink
-              key={item.to}
-              to={item.to}
-              end={item.to === '/'}
-              className={({ isActive }) => `dp-subnav__link${isActive ? ' is-active' : ''}`}
-            >
-              {item.label}
-            </NavLink>
-          ))}
-        </div>
-      </nav>
+      <SubNav label="Sections">
+        {NAV.map((item) => (
+          <NavLink
+            key={item.to}
+            to={item.to}
+            end={item.to === '/'}
+            className={({ isActive }) =>
+              `cf-subnav__link${isActive ? ' cf-subnav__link--current' : ''}`
+            }
+          >
+            {item.label}
+          </NavLink>
+        ))}
+      </SubNav>
       <DocumentMeta />
       <MainRegion className="dp-main">
         {/*

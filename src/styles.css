@@ -102,43 +102,33 @@ body {
  * back into the bar. `MainRegion` sets `tabIndex={-1}`; that is the whole difference.
  */
 
-.dp-subnav {
-  position: sticky;
-  /* The bar's OWN height token, not a number copied out of it. */
-  top: var(--cf-bar-h);
-  z-index: 20;
-  background: var(--cf-bg);
-  border-bottom: 1px solid var(--cf-line);
-}
-
-.dp-subnav__inner {
-  max-width: var(--cf-max-w);
-  margin: 0 auto;
-  display: flex;
-  gap: var(--cf-space-lg);
-  padding: 0 var(--cf-space-xl);
-  overflow-x: auto;
-}
-
-.dp-subnav__link {
-  display: inline-block;
-  padding: var(--cf-space-md) 0;
-  color: var(--cf-fg-dim);
-  text-decoration: none;
-  border-bottom: 2px solid transparent;
-  white-space: nowrap;
-  transition: color var(--cf-speed) var(--cf-ease);
-}
-
-.dp-subnav__link:hover {
-  color: var(--cf-fg);
-}
-
-/* The word takes the 4.5:1 text step; the 2px rule under it takes the 3:1 border step. */
-.dp-subnav__link.is-active {
-  color: var(--cf-accent-text);
-  border-bottom-color: var(--cf-accent);
-}
+/*
+ * `.dp-subnav`, `.dp-subnav__inner`, `.dp-subnav__link`, its `:hover` and `.is-active` WERE HERE,
+ * and they are gone with the markup they styled: the section strip is `SubNav` from
+ * @cloudsforge/ui now, which brings `.cf-subnav`, `.cf-subnav__inner`, `.cf-subnav__link` and
+ * `.cf-subnav__link--current`.
+ *
+ * Measured 2026-08-10: ten frontends declared this strip privately, under six class prefixes, from
+ * one original. This copy already scrolled (`overflow-x: auto` on the inner, `white-space: nowrap`
+ * on the link) and already took its measure from `--cf-max-w` rather than the 76rem five of the ten
+ * wrote, and it carries no literal font size anywhere. What it had drifted into is what a private
+ * copy always eventually reaches: `.is-active` marked the current section in ink and underline
+ * only, where the estate's rule is three channels — the reason is the 4.6 ΔE measurement
+ * `ui/packages/ui/src/tokens.css` records beside the reserved status hues. The shared rule also
+ * narrows the gutter to `--cf-space-md` under 560px in step with `.cf-bar__inner`, which this copy
+ * did not, so the two rows of the header now line up on a phone as well as on a desktop.
+ *
+ * THE 3:1 / 4.5:1 SPLIT THIS BLOCK USED TO EXPLAIN STILL HOLDS, AND THE SHARED RULE KEEPS IT.
+ * The comment that stood over `.is-active` said "the word takes the 4.5:1 text step; the 2px rule
+ * under it takes the 3:1 border step". `.cf-subnav__link--current` sets `color: var(--cf-fg)` and
+ * `border-bottom-color: var(--cf-accent)` — full-strength ink rather than `--cf-accent-text`, which
+ * is a higher contrast ratio than the rule this file was enforcing, and the accent stays on the
+ * border where the 3:1 step belongs. Nothing is lost by the move; the current section is simply no
+ * longer accent-COLOURED, which is the point of marking it in three channels instead.
+ *
+ * A rule left behind after its element is deleted is dead weight the next reader has to prove is
+ * dead — the same reason `.dp-skip` above is a comment rather than a rule.
+ */
 
 .dp-main {
   max-width: var(--cf-max-w);
