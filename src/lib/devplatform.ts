@@ -1220,8 +1220,15 @@ export interface KnownGap {
 /*
  * PROVENANCE, kept here rather than printed under the entry: `sdk/openapi.json` carries 52 paths
  * and not one of them belongs to devplatform, so neither `sdk/packages/sdk/src/credentials.ts` nor
- * `sdk/packages/cli/src/run.ts` has a route to call. Both still say in their own source that
- * devplatform does not exist; it does (`devplatform/src/server.ts`). It closes when devplatform's
+ * `sdk/packages/cli/src/run.ts` has a route to call. Re-verified 2026-08-11: still 52, still none.
+ *
+ * This note used to end "Both still say in their own source that devplatform does not exist; it
+ * does." That half is closed — micro-sdk corrected both files, and what they now say is the
+ * accurate, narrower thing: the platform ships and mints keys self-service, and the token endpoint
+ * `clientCredentials` would need is identity's to build, because devplatform will not sign with
+ * identity's key and must not have one of its own. The user-facing sentence in `finding` below
+ * carried the same claim and has been rewritten with it, since a console telling developers not to
+ * trust our own SDK's documentation had better be right about it. It closes when devplatform's
  * `/v1` routes are added to the SDK's verified route table and to `openapi.json` — the gateway
  * condition that used to block it is met, since `cf-api-devplatform` forwards the seven prefixes
  * and the blackhole catch-all is gone.
@@ -1233,8 +1240,9 @@ export const SDK_GAP: KnownGap = {
     'Our published SDK and command-line tool will carry an API key as a bearer token, and that is ' +
     'the whole of what they do with one: neither can issue a key, list the keys you hold, revoke ' +
     'one or ask what a key is allowed to do. Do all of that here in this console, or against the ' +
-    'API yourself. Both tools also still describe this platform as something that does not exist ' +
-    'yet, so do not take their word for it.',
+    'API yourself. Their OAuth client-credentials option also needs a token endpoint you supply ' +
+    'yourself, because there is not one to default to yet; an API key from this console is the ' +
+    'straightforward path.',
 }
 
 /**
