@@ -20,17 +20,32 @@ Design authority: [`ecosystem/03-repository-responsibilities.md`](https://github
 
 ## What it talks to
 
-One service, one host. In production the bundle and `micro-devplatform` share
-`developers.<apex>` — nginx serves the static files, the service serves `/v1` — so `apiBase()` is
-the empty string and every request is relative. Under `pnpm dev` they are on different ports and
-the request goes cross-origin. That difference is derived by **comparing origins**, never by a
-build flag: this repository has no build-time configuration at all (see
+One service, one **hostname** — not one machine; the estate has been two since the chain daemons
+moved off the app host, and nothing on this surface depends on which. In production the bundle and
+`micro-devplatform` share `developers.<apex>` — nginx serves the static files, the service serves
+`/v1` — so `apiBase()` is the empty string and every request is relative. Under `pnpm dev` they are
+on different ports and the request goes cross-origin. That difference is derived by **comparing
+origins**, never by a build flag: this repository has no build-time configuration at all (see
 [No build-time environment](#no-build-time-environment)).
 
 Identity is the second upstream, and it is reached at `nimbus.<apex>` for `/auth/me` and
 `/auth/refresh` only. `/auth/me` nests the profile under `user` (`GET /auth/me` in
 `identity/src/server.ts`, body built by `toPublicUser` at `identity/src/users.ts`) and this app is **nested-only** —
 see [The `/auth/me` shape](#the-authme-shape).
+
+**Two things now stand between a new developer and their first key, and neither is this app's.**
+Both were added to identity after this document was written, and a developer who cannot get past
+either will report it here, because this is the console they were trying to reach:
+
+* **Registration is behind Cloudflare Turnstile.** `POST /auth/register` is the estate's only
+  unauthenticated account-creating route and it verifies a challenge token against
+  `siteverify` (`identity/src/turnstile.ts`). A browser with the challenge blocked cannot create
+  an account at all.
+* **A new account cannot sign in until its address is verified.** `signInRefusal` returns
+  `unverified` while `email_verified_at` is null (`identity/src/users.ts`), so the sign-in this
+  app bounces an anonymous visitor to will refuse until they click the link they were mailed.
+  Every gated screen in the table below is behind that, and the symptom presents as "the developer
+  console will not let me in" rather than as an unread email.
 
 ### The routes this bundle calls
 
@@ -330,7 +345,7 @@ drawn mark, which would be this repository inventing brand.
 Each is a finding with the files it was read from. Both are also rendered on the index page, held
 as data in `src/lib/devplatform.ts` (`SDK_GAP`, `MALFORMED_ID_GAP`) so the screens and this file
 cannot disagree. A finding that gets fixed is DELETED from both rather than marked resolved — see
-§7 for what was here and what closed it.
+§5 for what was here and what closed it.
 
 **1. THE GATEWAY GAP IS CLOSED, AND A BROKEN CITATION IS WHY IT TOOK SO LONG TO SAY SO.**
 It read: "the public API gateway registers routers for pricing, activity, foresight, identity,
@@ -351,8 +366,15 @@ check cannot have an opinion about. It now checks every cited file and forbids t
 
 **2. The public SDK and CLI cannot manage a key.** `sdk/openapi.json` carries 52 paths and not one
 belongs to devplatform, so `@cloudsforge/sdk` and the `cloudsforge` CLI can present a key as a
-bearer token and do nothing else with one. Both still say in their own source that devplatform does
-not exist (`sdk/packages/sdk/src/credentials.ts`, `sdk/packages/cli/src/run.ts`). It does.
+bearer token and do nothing else with one. Re-verified 2026-08-11: still 52 paths, still none.
+
+**The second half of this finding is closed and the closure is worth recording, because it is what
+reporting is for.** It read: "Both still say in their own source that devplatform does not exist
+(`sdk/packages/sdk/src/credentials.ts`, `sdk/packages/cli/src/run.ts`). It does." Both now say what
+is actually true — the platform ships and mints keys self-service, and what is missing is the
+client-credentials **token endpoint**, which devplatform deliberately does not own because signing
+a token means signing with identity's key. So `clientCredentials` still has no default `tokenUrl`,
+for a reason that survives the correction. The capability gap above is untouched by any of that.
 
 **3. A mistyped id is reported as a server fault.** Every `/v1` route that takes an `:id` compares
 it against a `uuid` column, and all but the two operator routes pass the path segment straight
@@ -379,17 +401,7 @@ second unversioned copy of the registry and the copy is the one that goes stale.
 micro-ui; the reconciliation is the `PORT=3012` line above, and `test/hosts.test.ts` pins both halves
 so the day either moves, the suite names the other.
 
-**5. The gateway's CORS allowlist names a host the registry does not define.**
-`deploy/gateway/dynamic/policy.yml` allowlists `https://devportal.cloudsforge.online`. The
-registry's subdomain for this surface is `developers` (`ui/packages/ui/src/surfaces.ts`), so the
-origin this bundle is actually served from is not on that list and `devportal.<apex>` is a name
-nothing resolves. It does not break this app, whose production requests are same-origin; it would
-break any cross-origin call, and it is a name that will be believed. Reported to micro-deploy.
-
-**6. `deploy/README.md` says devplatform does not exist.** It does — a complete service with 35
-`/v1` routes and a migrated schema. Reported to micro-deploy.
-
-**7. Nothing on this page is a closed finding.** Three that were here are gone rather than ticked
+**5. Nothing on this page is a closed finding.** Six that were here are gone rather than ticked
 off, because a list that keeps its resolved entries is a list people stop reading. For the record,
 and because the closure is the evidence the reporting works:
 
@@ -406,7 +418,20 @@ and because the closure is the evidence the reporting works:
 A fourth — *no route resolved a developer organisation* — is closed by `GET /v1/organisations`, and
 the organisations screen no longer issues a write in order to ask a question.
 
-**8. The webhook attempt ceiling is not on the wire.** `DEVPLATFORM_WEBHOOK_MAX_ATTEMPTS` defaults to
+**Two more closed on 2026-08-11, both in `micro-deploy`, both reported from here**, and both were
+findings 5 and 6 on this list until that morning:
+
+* *The gateway's CORS allowlist named a host the registry does not define.* It allowlisted
+  `https://devportal.cloudsforge.online`, and the registry's subdomain for this surface is
+  `developers`. `deploy/gateway/dynamic/policy.yml` now allowlists
+  `https://developers{{ env "CF_WEB_SUFFIX" }}` and carries no `devportal` origin at all. The old
+  name still resolves to nothing — a request to it gets no answer, not a 404 — which is why the
+  entry was worth reporting rather than tolerating: it would have been believed.
+* *`deploy/README.md` said devplatform does not exist.* It now says of `billing`, `custody` and
+  `devplatform` that **all of them exist**, and credits this repository by name for catching the
+  devplatform half. The estate composition had already agreed; only the sentence was stale.
+
+**6. The webhook attempt ceiling is not on the wire.** `DEVPLATFORM_WEBHOOK_MAX_ATTEMPTS` defaults to
 8 (`devplatform/src/env.ts`) and no route returns it, so the delivery list cannot tell
 "abandoned" from "still retrying" without assuming a value. It assumes the default and **says on the
 screen that it assumed it** — the one number in this app that is inferred rather than read.

@@ -20,12 +20,16 @@
  * says the public surface is `api.<apex>/v1/<resource>`, forwarded unchanged. Two things make that
  * the wrong host for THIS bundle:
  *
- *   1. **The gateway routes nothing of devplatform's.** `deploy/gateway/dynamic/public-api.yml`
- *      registers routers for pricing, activity, foresight, identity, wallet, market, mint and
- *      worlds and for no other service. None of `organisations`, `projects`,
- *      `keys`, `webhook-endpoints`, `oauth-clients`, `quotas`, `usage`, `apps` or `scopes` appears
- *      in any rule, so every one of them falls to `cf-api-catchall` and is
- *      blackholed at `http://127.0.0.1:1`. Reported to micro-deploy.
+ *   1. **THIS REASON IS CLOSED, AND THE DECISION DOES NOT DEPEND ON IT.** It read: "the gateway
+ *      routes nothing of devplatform's — none of `organisations`, `projects`, `keys`,
+ *      `webhook-endpoints`, `oauth-clients`, `quotas`, `usage`, `apps` or `scopes` appears in any
+ *      rule, so every one of them falls to `cf-api-catchall` and is blackholed at
+ *      `http://127.0.0.1:1`." `deploy/gateway/dynamic/public-api.yml` now declares
+ *      `cf-api-devplatform` forwarding the seven prefixes to devplatform, and both the catch-all
+ *      and the blackhole it pointed at are deleted outright. `https://api.<apex>/v1/scopes`
+ *      answers 200. It is kept, named, because a reader who finds the rule and not this note would
+ *      reasonably conclude the surface decision below was made on a premise that is no longer
+ *      true — and it was not: reason 2 is the load-bearing one and is unaffected.
  *   2. **`api.<apex>` is deliberately not a browser origin.** Its middleware chain is
  *      `cf-api-headers` alone (`public-api.yml`), which carries no CORS — the file says why
  *      in the comment above that middleware: the API host "is not a browser origin for a
@@ -53,18 +57,21 @@
  * unversioned copy of the registry, and the copy is the one that goes stale. The README says
  * `PORT=3012 pnpm start`, in one line, next to the citation. Reported to micro-ui.
  *
- * **2. The gateway's CORS allowlist names a host the registry does not define.**
- * `deploy/gateway/dynamic/policy.yml` allowlists `https://devportal.cloudsforge.online`. The
- * registry's subdomain for this surface is `developers` (`ui/packages/ui/src/surfaces.ts`), so
- * the origin this bundle is actually served from — `https://developers.<apex>` — is not on that
- * list, and `https://devportal.<apex>` is a name nothing in the estate resolves. It does not break
- * THIS app, whose requests are same-origin in production; it would break any cross-origin call
- * from here, and it is a name that will be believed. Reported to micro-deploy.
+ * **2 AND 3 ARE BOTH CLOSED — 2026-08-11 — and are recorded here rather than deleted, because
+ * this block is the argument for reporting a disagreement instead of working around it.**
  *
- * **3. `deploy/README.md` says devplatform does not exist.** It does: `micro-devplatform` is a
- * complete service with 31 `/v1` routes and a migrated schema, and the estate composition now
- * agrees — `deploy/compose/docker-compose.estate.yml` declares the `devplatform` service and its
- * migration job. Only the README sentence is left stale. Reported to micro-deploy.
+ * **2 said the gateway's CORS allowlist names a host the registry does not define:**
+ * `deploy/gateway/dynamic/policy.yml` allowlisted `https://devportal.cloudsforge.online` while the
+ * registry's subdomain for this surface is `developers` (`ui/packages/ui/src/surfaces.ts`), so the
+ * origin this bundle is actually served from was not on the list and `devportal.<apex>` was a name
+ * nothing resolved. `policy.yml` now allowlists `https://developers{{ env "CF_WEB_SUFFIX" }}` and
+ * carries no `devportal` origin anywhere. The old name still resolves to nothing — which was the
+ * whole risk: it read like a fact.
+ *
+ * **3 said `deploy/README.md` says devplatform does not exist.** It now says the opposite, and
+ * credits this repository for catching it. The estate composition had already agreed —
+ * `deploy/compose/docker-compose.estate.yml` declares the `devplatform` service and its migration
+ * job — and only the sentence was stale.
  *
  * This note used to cite a `docker-compose.slice.yml` under `deploy/compose` — written out as a
  * path, which it deliberately is not here — and micro-deploy has since deleted that file.
