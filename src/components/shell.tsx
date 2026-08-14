@@ -17,7 +17,7 @@
  * The favicons and the OG card in `public/` come from that set. Reported to micro-ui; not papered
  * over here with a locally drawn mark, which would be this repository inventing brand.
  */
-import { useEffect } from 'react'
+import { useEffect, useState } from 'react'
 import {
   CloudsForgeBar,
   CloudsForgeFooter,
@@ -33,8 +33,13 @@ import { PRODUCT, hosts } from '../lib/hosts.ts'
 import { metaFor } from '../lib/meta.ts'
 import { NAV } from '../lib/routes.ts'
 import { useSession } from '../lib/auth.tsx'
+import { setViewedNetwork, viewedNetwork, type ViewedNetwork } from '../lib/viewed.ts'
 
 export function AppShell({ unregistered = false }: { unregistered?: boolean }) {
+  // The viewed network: in-tab memory, defaulting to the hostname's own (micro-org#459).
+  // `setViewedNetwork` runs first in the handler below so the remounted tree reads the new value
+  // on its very first render.
+  const [viewed, setViewed] = useState<ViewedNetwork>(viewedNetwork())
   const { account, signIn, signOut } = useSession()
 
   return (
@@ -68,12 +73,28 @@ export function AppShell({ unregistered = false }: { unregistered?: boolean }) {
         because a wrong apex silently mis-derives every estate address; a literal here would be the
         same defect chosen deliberately.
       */}
+      {/*
+        In-app network context (micro-org#459, the combined view). The reader's choice lives in
+        `lib/viewed.ts` — module memory, never storage — and the `key` on the Outlet below is the
+        refetch mechanism: switching remounts the page tree, and `apiBase()` reads `viewedHosts()`,
+        so the same page re-reads itself from the other estate WITHOUT going anywhere. The band and
+        the switcher both follow the selection, so testnet data under a mainnet address bar is
+        never unmarked. The bar also stamps `?net=` onto its product links, which is what carries
+        the choice across a product switch — every surface is its own origin, so nothing else can.
+      */}
       <CloudsForgeBar
         current={PRODUCT}
         account={account}
         onSignIn={() => signIn()}
         onSignOut={signOut}
         mining={miningOnHub(hosts().hub)}
+        networkSwitch={{
+          selected: viewed,
+          onSelect: (n) => {
+            setViewedNetwork(n)
+            setViewed(n)
+          },
+        }}
       />
       {/*
         THE SECTION STRIP IS THE SHARED ONE NOW, AND THE LOCAL `.dp-subnav*` RULES ARE GONE WITH IT.
@@ -132,7 +153,7 @@ export function AppShell({ unregistered = false }: { unregistered?: boolean }) {
             </span>
           </p>
         )}
-        <Outlet />
+        <Outlet key={viewed} />
       </MainRegion>
 
       {/*
