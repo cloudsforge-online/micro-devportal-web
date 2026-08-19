@@ -24,6 +24,34 @@
  * does not have to boot a browser to find out what the routes are.
  */
 
+/**
+ * ── WHERE THIS BUNDLE IS MOUNTED, AND WHY THE TWO KINDS OF PATH BELOW DIFFER ─────────────────────
+ *
+ * The Developer Platform used to be a hostname. It is now a FOLDER on the apex: `/developers`, wave 3b of the
+ * consolidation argued in micro-deploy `docs/apex-consolidation.md`. The registry says the same
+ * thing in one line — `subdomain: ''`, `basePath: '/developers'`.
+ *
+ *   A ROUTER PATH is what `react-router` matches, relative to the mount. Every `<Link to>`,
+ *     `<Route path>`, and the navigation derived from `ROUTES` below. `basename` in `src/app.tsx`
+ *     puts the prefix back, so a router path that already carries it renders `/developers/developers/…`.
+ *
+ *   A PUBLIC PATH is what a reader's address bar shows and what a crawler is handed. Every `<loc>`
+ *     in the sitemap and every `location` in `nginx.conf`.
+ *
+ * `publicPath()` is the one crossing, and the only place `BASE` is concatenated.
+ *
+ * THE API IS A THIRD THING AND IT IS NOT HERE. `micro-devplatform` answers `/v1`, this bundle asks for it
+ * relatively, and a relative `/v1` from `/developers/anything` resolves at the APEX ROOT — which is
+ * micro-site's, and micro-site answers its SPA shell with a 200 and an HTML body. That is
+ * `apiBaseFor()` in `lib/hosts.ts`, not a route — see its comment.
+ */
+export const BASE = '/developers'
+
+/** A router path as a public one. No trailing slash: the index is `/developers`, not `/developers/`. */
+export function publicPath(path: string): string {
+  return path === '/' ? BASE : `${BASE}${path}`
+}
+
 export interface AppRoute {
   /** The top-level path segment, without a leading slash. `''` is the index route. */
   readonly path: string

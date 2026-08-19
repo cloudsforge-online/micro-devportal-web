@@ -21,6 +21,7 @@ import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
 import { describe, it } from 'node:test'
 import {
+  BASE,
   BARE_PATHS,
   DEEP_LINK_PATH,
   NAV,
@@ -261,7 +262,7 @@ describe('nginx serves exactly the routes that exist', () => {
   })
 
   it('serves the index', () => {
-    assert.match(directives, /location = \/\s*\{/)
+    assert.match(directives, new RegExp(`location = /developers\\s*\\{`))
   })
 
   it('does NOT use the SPA 200-fallback', () => {
@@ -270,12 +271,12 @@ describe('nginx serves exactly the routes that exist', () => {
   })
 
   it('keeps the honest 404 through error_page', () => {
-    assert.match(directives, /error_page 404 \/index\.html/)
+    assert.match(directives, new RegExp(`error_page 404 /developers/index\\.html`))
   })
 
   it('404s a missing asset rather than serving the shell for it', () => {
     // A JavaScript request answered with HTML fails with a syntax error naming the wrong file.
-    assert.match(directives, /location \/assets\/\s*\{\s*try_files \$uri =404/)
+    assert.match(directives, new RegExp(`location /developers/assets/\\s*\\{\\s*try_files \\$uri =404`))
   })
 
   it('sets the three security headers at the server level', () => {
@@ -311,12 +312,12 @@ describe('nginx serves exactly the routes that exist', () => {
   })
 
   it('never caches the shell', () => {
-    const root = /location = \/\s*\{([^}]*)\}/.exec(directives)?.[1] ?? ''
+    const root = new RegExp(`location = /developers\\s*\\{([^}]*)\\}`).exec(directives)?.[1] ?? ''
     assert.match(root, /Cache-Control "no-store"/)
   })
 
   it('caches hashed assets immutably', () => {
-    const assets = /location \/assets\/\s*\{([^}]*)\}/.exec(directives)?.[1] ?? ''
+    const assets = new RegExp(`location /developers/assets/\\s*\\{([^}]*)\\}`).exec(directives)?.[1] ?? ''
     assert.match(assets, /immutable/)
   })
 })

@@ -37,7 +37,7 @@ const read = (file: string): string => readFileSync(new URL(`../${file}`, import
 
 /** The production host table, as `cloudsforgeHosts()` derives it from an apex hostname. */
 function production(): CloudsForgeHosts {
-  installWindow('https://developers.cloudsforge.online/')
+  installWindow('https://cloudsforge.online/developers/')
   const hosts = cloudsforgeHosts()
   removeWindow()
   return hosts
@@ -55,7 +55,14 @@ describe('the surface this app is', () => {
     assert.ok(surface, 'developers is not in the surface registry')
     assert.equal(surface.kind, 'surface')
     assert.equal(surface.inSwitcher, false)
-    assert.equal(surface.subdomain, 'developers')
+    // ── IT IS A PATH SINCE WAVE 3b, AND THE SWITCHER STILL FINDS IT ─────────────────────
+    //
+    // `subdomain: 'developers'` was the assertion, and what it was FOR is that the switcher can
+    // navigate here. A home is an ADDRESS, and either half of (subdomain, basePath)
+    // supplies one — so both are asserted rather than the empty string alone, which would
+    // pass for a surface that had lost its home entirely.
+    assert.equal(surface.subdomain, '')
+    assert.equal(surface.basePath, '/developers')
     assert.equal(surface.name, 'Developer Platform')
     assert.equal(surface.accent, '#4a86e0')
   })
@@ -81,7 +88,11 @@ describe('the API base is an origin comparison, never a flag', () => {
 
   it('is relative when the page and the API share an origin', () => {
     // Production: nginx serves this bundle and devplatform serves /v1 behind developers.<apex>.
-    assert.equal(resolveApiBase('https://developers.cloudsforge.online', hosts, PRODUCT), '')
+    // THE MOUNT, not `''`. A relative `/v1/…` from a page at `/developers/anything`
+    // resolves at the ORIGIN ROOT — micro-site's — which answers its SPA shell: 200, HTML
+    // where JSON was expected. The gateway strips `/developers` before `micro-devplatform` sees
+    // it, so the service is unchanged (decision 4).
+    assert.equal(resolveApiBase('https://cloudsforge.online', hosts, PRODUCT), '/developers')
   })
 
   it('is absolute when they do not', () => {
@@ -93,8 +104,8 @@ describe('the API base is an origin comparison, never a flag', () => {
   })
 
   it('resolves from the window on every call, so one image serves every environment', () => {
-    installWindow('https://developers.cloudsforge.online/projects/x/keys')
-    assert.equal(apiBase(), '')
+    installWindow('https://cloudsforge.online/developers/projects/x/keys')
+    assert.equal(apiBase(), '/developers')
     removeWindow()
 
     installWindow('http://localhost:5192/projects/x/keys')
@@ -155,7 +166,7 @@ describe('local development is exempt, in exactly the four names cloudsforgeHost
   })
 
   it('treats a real hostname as not local', () => {
-    for (const hostname of ['developers.cloudsforge.online', 'example.test', 'localhost.evil.test']) {
+    for (const hostname of ['cloudsforge.online', 'example.test', 'localhost.evil.test']) {
       assert.equal(isLocal(hostname), false, hostname)
     }
   })
@@ -167,8 +178,8 @@ describe('the placement warning', () => {
   it('accepts this surface’s own origin', () => {
     assert.equal(
       isRegisteredPlacement(
-        'https://developers.cloudsforge.online',
-        'developers.cloudsforge.online',
+        'https://cloudsforge.online/developers',
+        'cloudsforge.online',
         hosts,
       ),
       true,

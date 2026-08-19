@@ -68,7 +68,7 @@ import { useIdempotentMutation, useMutation } from '../src/lib/mutation.ts'
 import { KeysPage } from '../src/pages/keys.tsx'
 import { WebhooksPage } from '../src/pages/webhooks.tsx'
 
-const ORIGIN = 'https://developers.cloudsforge.online'
+const ORIGIN = 'https://cloudsforge.online/developers'
 
 const atRoute = (pattern: string, element: ReactElement, path: string): ReactElement =>
   h(

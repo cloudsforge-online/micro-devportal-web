@@ -22,7 +22,7 @@ import { apiBase } from '../src/lib/hosts.ts'
 import { setViewedNetwork, viewedNetwork } from '../src/lib/viewed.ts'
 
 /** A real address on this surface, on the mainnet estate. */
-const PAGE = 'https://developers.cloudsforge.online/'
+const PAGE = 'https://cloudsforge.online/developers/'
 /** A development address: no sibling estate exists, so nothing here can point anywhere. */
 const DEV = 'http://localhost:5173/'
 
@@ -42,7 +42,7 @@ describe('the in-place network view', () => {
   it('starts on the network the hostname names, and says so', () => {
     at(PAGE, () => {
       assert.equal(viewedNetwork(), 'mainnet')
-      assert.equal(apiBase(), '')
+      assert.equal(apiBase(), '/developers')
     })
   })
 
@@ -53,7 +53,7 @@ describe('the in-place network view', () => {
       // `-testnet` on the API host, not a different path and not a different product. The web
       // hostname is retired and 302s to its mainnet sibling; `/v1` on it is exempt and still
       // answers from the testnet service, which is what makes this readable at all.
-      assert.equal(apiBase(), 'https://developers-testnet.cloudsforge.online')
+      assert.equal(apiBase(), 'https://testnet.cloudsforge.online/developers')
     })
   })
 
@@ -62,7 +62,7 @@ describe('the in-place network view', () => {
       setViewedNetwork('testnet')
       setViewedNetwork('mainnet')
       assert.equal(viewedNetwork(), 'mainnet')
-      assert.equal(apiBase(), '')
+      assert.equal(apiBase(), '/developers')
     })
   })
 

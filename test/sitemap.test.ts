@@ -37,12 +37,14 @@
  * ══════════════════════════════════════════════════════════════════════════════════════════════
  */
 import assert from 'node:assert/strict'
-import { readFileSync } from 'node:fs'
+import { existsSync, readFileSync } from 'node:fs'
 import { describe, it } from 'node:test'
 import { ENV_LABELS } from '@cloudsforge/ui'
 import { robotsTxt } from '@cloudsforge/ui/sitemap'
 import { PRIVATE_ROBOTS, metaFor } from '../src/lib/meta.ts'
 import { ROUTES } from '../src/lib/routes.ts'
+import { BASE } from '../src/lib/routes.ts'
+import { publicPath } from '../src/lib/routes.ts'
 
 const nginx = readFileSync(new URL('../nginx.conf', import.meta.url), 'utf8')
 
@@ -82,7 +84,7 @@ describe('the sitemap nginx serves', () => {
      * on a preview deployment and on testnet, silently, in the one document a crawler treats as
      * authoritative.
      */
-    const xml = servedBody('/sitemap.xml')
+    const xml = servedBody(`${BASE}/sitemap.xml`)
     assert.ok(!xml.includes('cloudsforge.online'), 'the sitemap names the production apex')
     assert.ok(!xml.includes('localhost'), 'the sitemap names localhost')
     const locs = [...xml.matchAll(/<loc>([^<]*)<\/loc>/g)].map((m) => m[1] ?? '')
@@ -94,15 +96,22 @@ describe('the sitemap nginx serves', () => {
   })
 
   it('lists every PUBLIC route, so a crawler is not left to guess', () => {
-    const xml = servedBody('/sitemap.xml')
+    const xml = servedBody(`${BASE}/sitemap.xml`)
     for (const path of PUBLIC_PATHS) {
-      const address = path === '/' ? '$scheme://$host' : `$scheme://$host${path}`
+      // ── `https` IS A LITERAL AND THE MOUNT IS PART OF THE ADDRESS ─────────────────────
+      //
+      // `$scheme` was a live defect: TLS ends at Cloudflare and every hop after it is
+      // plaintext, so `$scheme` is `http` for a reader who arrived over `https` and every
+      // `<loc>` advertised an address that 301s. `$host` stays a variable — the host really
+      // does differ per request. And the surface is `<apex>/developers` now, so the public
+      // address carries the mount; `publicPath()` in `src/lib/routes.ts` is the one crossing.
+      const address = `https://$host${publicPath(path)}`
       assert.ok(xml.includes(`<loc>${address}</loc>`), `${path} is missing from the sitemap`)
     }
   })
 
   it('lists nothing else, and in particular no gated address and no one listing', () => {
-    const xml = servedBody('/sitemap.xml')
+    const xml = servedBody(`${BASE}/sitemap.xml`)
     const listed = [...xml.matchAll(/<loc>\$scheme:\/\/\$host([^<]*)<\/loc>/g)].map((m) =>
       m[1] === '' ? '/' : (m[1] ?? ''),
     )
@@ -123,7 +132,7 @@ describe('the sitemap nginx serves', () => {
      * `metaFor()` answers `index, follow` for, and every address it answers `noindex` for must be
      * absent — checked against the module rather than against a reader's memory of it.
      */
-    const xml = servedBody('/sitemap.xml')
+    const xml = servedBody(`${BASE}/sitemap.xml`)
     for (const path of PUBLIC_PATHS) {
       assert.notEqual(metaFor(path).robots, PRIVATE_ROBOTS, `${path} is listed and is noindex`)
     }
@@ -134,7 +143,7 @@ describe('the sitemap nginx serves', () => {
   })
 
   it('is a well-formed urlset in the only schema crawlers implement', () => {
-    const xml = servedBody('/sitemap.xml')
+    const xml = servedBody(`${BASE}/sitemap.xml`)
     assert.match(xml, /^<\?xml version="1\.0" encoding="UTF-8"\?>\n/)
     assert.match(xml, /<urlset xmlns="http:\/\/www\.sitemaps\.org\/schemas\/sitemap\/0\.9">/)
     assert.match(xml, /<\/urlset>$/)
@@ -146,7 +155,7 @@ describe('the sitemap nginx serves', () => {
     // applies — a declaration that reads as a decision and is not one.
     assert.match(
       nginx,
-      /location = \/sitemap\.xml \{[\s\S]*?types \{ \}[\s\S]*?default_type application\/xml;/,
+      new RegExp(`location = /developers/sitemap\\.xml \\{[\\s\\S]*?types \\{ \\}[\\s\\S]*?default_type application/xml;`),
     )
   })
 
@@ -186,7 +195,7 @@ describe('an environment that is not mainnet', () => {
     // Both halves matter and neither is sufficient: robots.txt stops the fetch, and a sitemap that
     // still answered would be an invitation contradicting the instruction beside it.
     assert.match(nginx, /if \(\$cf_env\) \{ return 200 'User-agent: \*\\nDisallow: \/\\n'; \}/)
-    assert.match(nginx, /location = \/sitemap\.xml \{[\s\S]*?if \(\$cf_env\) \{ return 404; \}/)
+    assert.match(nginx, new RegExp(`location = /developers/sitemap\\.xml \\{[\\s\\S]*?if \\(\\$cf_env\\) \\{ return 404; \\}`))
   })
 
   it('matches a suffixed subdomain as well as a bare environment apex', () => {
@@ -208,39 +217,34 @@ describe('an environment that is not mainnet', () => {
 })
 
 describe('robots.txt', () => {
-  it('is exactly what the design system generates', () => {
-    // Compared with its trailing newline intact: robots.txt is a line-oriented format and a parser
-    // that reads the last line only when it is terminated is a parser that silently loses the
-    // Sitemap directive.
-    assert.equal(
-      servedBody('/robots.txt'),
-      robotsTxt({ indexable: true, sitemapUrl: '$scheme://$host/sitemap.xml' }),
-    )
-  })
-
-  it('points at the sitemap with an absolute address, composed rather than typed', () => {
-    // A relative `Sitemap:` line is invalid per the standard and is ignored; a literal one bakes in
-    // a hostname. `$scheme://$host` is the only form that is both valid and environment-free.
-    assert.match(servedBody('/robots.txt'), /^Sitemap: \$scheme:\/\/\$host\/sitemap\.xml$/m)
-  })
-
-  it('is not a static file, which an exact-match location would have shadowed', () => {
+  it('is not served by this image at all, because the origin root is micro-site\'s', () => {
     /*
-     * `location = /robots.txt` wins over the `location /` prefix that serves the static tree, so a
-     * file in `public/` would be deployed, unreachable, and edited by the next reader to no effect
-     * — the worst of the three states, worse than either serving it or not having it. This file's
-     * own header used to name robots.txt as one of the "real files" `location /` serves; it does
-     * not any more, and this is what keeps the two statements in step.
+     * ── THE BLOCK THAT WAS HERE IS GONE, AND SO IS THE ONE IN nginx.conf ────────────────────────
+     *
+     * It asserted that `location = /robots.txt` regenerated `robotsTxt()` and carried an absolute
+     * `Sitemap:` line. Both were right while this surface was a hostname.
+     *
+     * A crawler reads robots.txt at the ORIGIN ROOT and nowhere else. Now the surface is
+     * `<apex>/developers`, `/developers/robots.txt` is a file nothing would fetch — so the rules were not
+     * relocated, they STOPPED BEING THIS BUNDLE'S TO MAKE. micro-site owns `/robots.txt` on this
+     * origin, and its own suite asserts a `Sitemap:` line for every consolidated surface.
+     *
+     * The absence is asserted BOTH ways: no location in nginx.conf, and no static file either. An
+     * unreachable config file is not a safety net — it is a thing a future reader finds, believes,
+     * and reasons from.
      */
-    for (const name of ['robots.txt', 'sitemap.xml']) {
-      let present = true
-      try {
-        readFileSync(new URL(`../public/${name}`, import.meta.url))
-      } catch {
-        present = false
-      }
-      assert.equal(present, false, `public/${name} exists, and nginx will never serve it`)
-    }
+    // Comments stripped: the deleted block left one saying so, which necessarily contains the
+    // words `location = /robots.txt` — a raw search finds its own explanation.
+    const directives = nginx.split('\n').filter((l) => !/^\s*#/.test(l)).join('\n')
+    assert.ok(
+      !/location = \/(?:developers\/)?robots\.txt/.test(directives),
+      'this image serves a robots.txt again; the origin root is micro-site\'s',
+    )
+    assert.equal(
+      existsSync(new URL('../public/robots.txt', import.meta.url)),
+      false,
+      'public/robots.txt is back, and nothing on this origin would fetch it',
+    )
   })
 })
 

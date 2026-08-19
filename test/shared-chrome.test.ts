@@ -139,7 +139,7 @@ test('ProductSwitcher and AccountMenu also render standing alone', async () => {
  * origin the registry does not recognise would resolve `hub` one level too deep and make the href
  * below assert agreement between two wrong answers.
  */
-const ORIGIN = 'https://developers.cloudsforge.online'
+const ORIGIN = 'https://cloudsforge.online/developers'
 
 test('the sub-nav on screen is the shared strip, and every section link is a shared link', async () => {
   // `GET /v1/scopes` is what the index reads. Stubbed empty: this test is about the chrome around

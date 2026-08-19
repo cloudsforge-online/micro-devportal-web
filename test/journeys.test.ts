@@ -45,7 +45,7 @@ import { OAuthPage } from '../src/pages/oauth.tsx'
 import { UsagePage } from '../src/pages/usage.tsx'
 import { WebhooksPage } from '../src/pages/webhooks.tsx'
 
-const ORIGIN = 'https://developers.cloudsforge.online'
+const ORIGIN = 'https://cloudsforge.online/developers'
 const at = (p: string) => fileURLToPath(new URL(`../${p}`, import.meta.url))
 
 const page = (element: ReactElement, path: string): ReactElement =>
@@ -828,7 +828,7 @@ describe('BJ-DEVELOPERS-404 — an unowned address answers 404', () => {
     .join('\n')
 
   it('BJ-DEVELOPERS-404 T2: nginx serves the shell through error_page 404, never try_files', () => {
-    assert.match(directives, /error_page\s+404\s+\/index\.html/)
+    assert.match(directives, /error_page\s+404\s+\/developers\/index\.html/)
     assert.doesNotMatch(directives, /try_files\s+\$uri\s+(\$uri\/\s+)?\/index\.html/)
   })
 
