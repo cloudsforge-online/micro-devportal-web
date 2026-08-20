@@ -1,6 +1,6 @@
 {
   "name": "@cloudsforge/devportal-web",
-  "version": "2026.8.91",
+  "version": "2026.8.92",
   "packageManager": "pnpm@11.9.0",
   "private": true,
   "description": "The CloudsForge Developer Platform console: developer organisations, projects, API keys, OAuth clients, webhook endpoints, usage and quotas. A key's secret is shown once and can never be shown again.",
