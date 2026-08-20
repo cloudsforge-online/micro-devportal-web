@@ -155,11 +155,36 @@ export function isLocal(hostname: string): boolean {
  * shell, and the credential screens are behind a session that cannot be established from a host
  * the account portal does not know.
  */
-export function isRegisteredPlacement(pageOrigin: string, hostname: string, hosts: CloudsForgeHosts): boolean {
+export function isRegisteredPlacement(
+  pageUrl: string,
+  hostname: string,
+  hosts: CloudsForgeHosts,
+): boolean {
   if (isLocal(hostname)) return true
-  if (!pageOrigin) return true
+  if (!pageUrl) return true
   try {
-    return new URL(hosts[PRODUCT]).origin === pageOrigin
+    const registered = new URL(hosts[PRODUCT])
+    const page = new URL(pageUrl)
+    if (registered.origin !== page.origin) return false
+    // ── AND THE MOUNT, WITHOUT WHICH THIS CHECK STOPPED CHECKING ANYTHING ────────────────────
+    //
+    // This compared ORIGINS alone, and it took an argument called `pageOrigin`. That was a
+    // complete test while this console lived on `developers.<apex>`: only one surface answered
+    // on that hostname, so matching the origin matched the surface.
+    //
+    // On the apex it is not. `https://cloudsforge.online` is the origin of the marketing site,
+    // Forge Market, Forge Journal, the exchange and eight more — so an origin comparison is
+    // TRUE FOR ALL OF THEM and this function returned `true` for every address in the estate. It
+    // did not start reporting a false placement; it stopped being able to report one at all,
+    // which is the failure a security control has when nobody is looking at it.
+    //
+    // The registered URL is now `https://<apex>/developers`, so the mount is the discriminator
+    // and comparing it back is what makes the answer mean something again. `startsWith` on a
+    // SEGMENT boundary, not a raw prefix: `/developers-staging` must not pass for `/developers`,
+    // which is the same trap Traefik's `PathPrefix` has and this estate has hit before.
+    const mount = registered.pathname.replace(/\/+$/, '')
+    if (!mount) return true
+    return page.pathname === mount || page.pathname.startsWith(`${mount}/`)
   } catch {
     return false
   }
@@ -194,5 +219,7 @@ export function pageOrigin(): string {
 /** Whether the current address is one the registry knows. Read by the shell. */
 export function placementIsKnown(): boolean {
   if (typeof window === 'undefined') return true
-  return isRegisteredPlacement(window.location.origin, window.location.hostname, cloudsforgeHosts())
+  // The whole address, not the origin — since the mount, the path is what identifies the
+  // surface and the origin is shared with a dozen others. See the note on the function.
+  return isRegisteredPlacement(window.location.href, window.location.hostname, cloudsforgeHosts())
 }

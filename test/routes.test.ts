@@ -58,12 +58,23 @@ const directives = nginx
  * this app's own "there is nothing at this address" page served with a 200.
  */
 function nginxServed(): { bare: string[]; prefixOnly: string[] } {
-  const bare = [...directives.matchAll(/location\s+~\s+\^\/\(([^)]+)\)\(\/\|\$\)/g)].flatMap(
-    (m) => (m[1] ?? '').split('|').map((p) => p.trim()),
-  )
-  const prefixOnly = [...directives.matchAll(/location\s+~\s+\^\/([a-z-]+)\//g)].map(
-    (m) => m[1] ?? '',
-  )
+  // ── BOTH BLOCKS ARE MOUNTED, AND THIS RETURNS ROUTER PATHS EITHER WAY ──────────────────────
+  //
+  // nginx enumerates `^<BASE>/(organisations|apps)(/|$)` and `^<BASE>/projects/` since wave 3g.
+  // These patterns were anchored on a bare `^/`, so after the mount the first matched NOTHING and
+  // the second matched `developers` — which then failed as "nginx.conf serves /developers, which
+  // is not in the route table". Two failures, neither describing the actual difference.
+  //
+  // The mount goes into the PATTERN and comes back off the RESULT, so every caller below keeps
+  // comparing against `NON_INDEX_PATHS`, `BARE_PATHS` and `PREFIX_ONLY_PATHS` — which are router
+  // paths, and are the source this file exists to hold nginx against.
+  const mount = BASE.replace(/\//g, '\\/')
+  const bare = [
+    ...directives.matchAll(new RegExp(`location\\s+~\\s+\\^${mount}\\/\\(([^)]+)\\)\\(\\/\\|\\$\\)`, 'g')),
+  ].flatMap((m) => (m[1] ?? '').split('|').map((p) => p.trim()))
+  const prefixOnly = [
+    ...directives.matchAll(new RegExp(`location\\s+~\\s+\\^${mount}\\/([a-z-]+)\\/`, 'g')),
+  ].map((m) => m[1] ?? '')
   assert.ok(bare.length + prefixOnly.length > 0, 'nginx.conf has no enumerated route block')
   return { bare, prefixOnly }
 }

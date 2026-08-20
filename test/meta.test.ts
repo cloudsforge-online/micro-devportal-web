@@ -136,7 +136,12 @@ describe('every address this console serves gets its own head', () => {
   })
 
   it('collapses a trailing slash rather than minting a second canonical for one page', () => {
-    assert.equal(metaFor('/apps/').path, '/apps')
+    // `/developers/apps`, not `/apps`. `surfaceMeta` composes the canonical from the registry's
+    // `basePath` plus the ROUTER path this function passes it, so the mount arrives from upstream
+    // and every consolidated surface gets it without asking. Leaving it off was a live defect on
+    // market and exchange: a canonical pointing at an address that 404s is worse than the
+    // subdomain it replaced, because a crawler that believes it drops the real page.
+    assert.equal(metaFor('/apps/').path, '/developers/apps')
     assert.equal(metaFor('/apps/').title, metaFor('/apps').title)
   })
 
@@ -206,7 +211,10 @@ describe('an address this console does NOT serve is titled as one', () => {
   }
 
   it('keeps the address it was asked about as the canonical, rather than pretending it was /', () => {
-    assert.equal(metaFor('/nope').path, '/nope')
+    // The mount is on it, like every other canonical this function returns — `surfaceMeta` adds
+    // it from the registry. The point of THIS test is the `/nope` half: an address the console
+    // does not own keeps its own name in the canonical rather than being rewritten to the root.
+    assert.equal(metaFor('/nope').path, '/developers/nope')
   })
 })
 
@@ -282,7 +290,12 @@ describe('nothing here names a hostname', () => {
   })
 
   it('the card is the shared relative one', () => {
-    assert.equal(metaFor('/').image, '/og-1200x630.png')
-    assert.equal(metaContent('property', 'og:image'), '/og-1200x630.png')
+    // `/developers/og-1200x630.png` in BOTH halves, and they must agree. The runtime one comes
+    // from `mountAsset()` in @cloudsforge/ui, which reads the registry; the index.html one is by
+    // hand, because vite rewrites `src` and `href` against `base` and never `content`. A
+    // root-relative card resolves to micro-site's on the apex — it 200s and shows the wrong
+    // picture, which is why it went unnoticed on seven surfaces.
+    assert.equal(metaFor('/').image, '/developers/og-1200x630.png')
+    assert.equal(metaContent('property', 'og:image'), '/developers/og-1200x630.png')
   })
 })

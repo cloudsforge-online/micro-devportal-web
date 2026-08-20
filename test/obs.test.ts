@@ -34,7 +34,12 @@ describe('the envelope', () => {
     installWindow('https://cloudsforge.online/developers/reports?tab=1')
     const wrapped = event(1)
     assert.equal(wrapped.attributes['url'], 'https://cloudsforge.online/developers/reports?tab=1')
-    assert.equal(wrapped.route, '/reports', 'the route is the column Lantern groups on')
+    // THE PUBLIC PATH, and since the mount that is the only honest answer. `route` is the column
+    // Lantern groups on, and every consolidated surface now shares ONE origin — so a bare
+    // `/reports` from here and a `/reports` from somewhere else would land in the same bucket
+    // under the same origin and be indistinguishable in the chart. `/developers/reports` says
+    // which surface it came from, and is the address the reader actually visited.
+    assert.equal(wrapped.route, '/developers/reports', 'the route is the column Lantern groups on')
     assert.equal(
       wrapped.attributes['release'],
       'unknown',

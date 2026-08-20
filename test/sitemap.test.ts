@@ -40,13 +40,32 @@ import assert from 'node:assert/strict'
 import { existsSync, readFileSync } from 'node:fs'
 import { describe, it } from 'node:test'
 import { ENV_LABELS } from '@cloudsforge/ui'
-import { robotsTxt } from '@cloudsforge/ui/sitemap'
 import { PRIVATE_ROBOTS, metaFor } from '../src/lib/meta.ts'
 import { ROUTES } from '../src/lib/routes.ts'
 import { BASE } from '../src/lib/routes.ts'
 import { publicPath } from '../src/lib/routes.ts'
 
 const nginx = readFileSync(new URL('../nginx.conf', import.meta.url), 'utf8')
+
+/**
+ * nginx.conf with its comments removed.
+ *
+ * ── AN ABSENCE ASSERTION MUST NOT READ THE GRAVESTONE ─────────────────────────────────────────
+ *
+ * `refuses every crawler and serves no sitemap` now asserts that `location = /robots.txt` is
+ * GONE — a folder has no robots.txt of its own. It failed against a config that does not have
+ * one, because nginx.conf explains the removal in prose that names the directive it removed:
+ *
+ *   # ---- THERE WAS A `location = /robots.txt` HERE, AND THE FOLDER DELETED IT ----
+ *
+ * The comment is exactly what a future reader needs and exactly what breaks a raw grep. Same
+ * shape as the `try_files $uri /index.html` rule, which went red against a config that documents
+ * the forbidden directive in order to forbid it. So absence is checked against DIRECTIVES.
+ */
+const directives = nginx
+  .split('\n')
+  .filter((line) => !/^\s*#/.test(line))
+  .join('\n')
 
 /**
  * Every address of this surface a crawler should be handed, DERIVED rather than restated.
@@ -91,7 +110,20 @@ describe('the sitemap nginx serves', () => {
     assert.ok(locs.length > 0, 'the sitemap lists nothing at all')
     for (const loc of locs) {
       // No subdomain is composed here, unlike the apex's sitemap: `$host` IS this surface.
-      assert.match(loc, /^\$scheme:\/\/\$host(\/|$)/, `a <loc> is not composed: ${loc}`)
+      //
+      // ── THE SCHEME IS A LITERAL `https`, AND IT HAS TO BE ────────────────────────────────────
+      //
+      // This asserted `$scheme://$host` and nginx.conf now emits `https://$host`. The variable
+      // was a LIVE DEFECT, fixed in micro-site (wave 1), exchange-web (wave 2) and market-web
+      // (wave 3a) before this: TLS ends at Cloudflare, cloudflared speaks plain HTTP to the
+      // gateway and the gateway speaks plain HTTP to this container, so `$scheme` is `http` for
+      // a reader who arrived over `https` — and every `<loc>` advertised an address that 301s,
+      // in the one document a crawler treats as authoritative.
+      //
+      // What this test is FOR is unchanged and is checked above: no literal apex, no localhost.
+      // `$host` is still a variable, because the host genuinely differs per request. Only the
+      // scheme is fixed, because it genuinely does not.
+      assert.match(loc, /^https:\/\/\$host(\/|$)/, `a <loc> is not composed: ${loc}`)
     }
   })
 
@@ -112,9 +144,15 @@ describe('the sitemap nginx serves', () => {
 
   it('lists nothing else, and in particular no gated address and no one listing', () => {
     const xml = servedBody(`${BASE}/sitemap.xml`)
-    const listed = [...xml.matchAll(/<loc>\$scheme:\/\/\$host([^<]*)<\/loc>/g)].map((m) =>
-      m[1] === '' ? '/' : (m[1] ?? ''),
-    )
+    // `https://$host`, not `$scheme://$host` — the scheme is a literal for the reason the
+    // composition test above sets out at length. And the mount comes back OFF, because
+    // PUBLIC_PATHS below are ROUTER paths: the sitemap publishes `/developers/apps` and the route
+    // table calls it `/apps`, and this test is about the two agreeing on WHICH pages, not on how
+    // they are spelled.
+    const listed = [...xml.matchAll(/<loc>https:\/\/\$host([^<]*)<\/loc>/g)]
+      .map((m) => m[1] ?? '')
+      .map((p) => (p.startsWith(BASE) ? p.slice(BASE.length) : p))
+      .map((p) => (p === '' ? '/' : p))
     assert.deepEqual([...listed].sort(), [...PUBLIC_PATHS].sort())
     // `/apps/<slug>` is unbounded — one address per listed application, minted by the service after
     // review. A static list of them in a config file would be a second opinion about which
@@ -192,9 +230,22 @@ describe('an environment that is not mainnet', () => {
   })
 
   it('refuses every crawler and serves no sitemap', () => {
-    // Both halves matter and neither is sufficient: robots.txt stops the fetch, and a sitemap that
-    // still answered would be an invitation contradicting the instruction beside it.
-    assert.match(nginx, /if \(\$cf_env\) \{ return 200 'User-agent: \*\\nDisallow: \/\\n'; \}/)
+    // ── THE robots.txt HALF IS GONE, AND ITS ABSENCE IS NOW THE ASSERTION ────────────────────
+    //
+    // This checked that a non-mainnet environment served `User-agent: * / Disallow: /` from this
+    // container. Since the mount there is nothing here to serve it FROM: a crawler reads
+    // robots.txt at the ORIGIN ROOT and nowhere else, so `/developers/robots.txt` is a file
+    // nothing fetches on any host, and `/robots.txt` on this origin belongs to micro-site — whose
+    // copy is what decides whether this surface is indexed.
+    //
+    // Serving one here would be a SECOND document at an address another container already owns,
+    // and which of the two won would be decided by router priority rather than by anyone's
+    // intent. So the block was deleted, and this asserts it stays deleted: a folder has no
+    // robots.txt, and the day somebody adds one back this goes red.
+    assert.doesNotMatch(directives, /location\s*=\s*\/robots\.txt/)
+    assert.doesNotMatch(directives, /User-agent:/)
+    // The sitemap half is unchanged and still load-bearing: an environment that must not be
+    // indexed has no sitemap either, or the invitation would contradict micro-site's instruction.
     assert.match(nginx, new RegExp(`location = /developers/sitemap\\.xml \\{[\\s\\S]*?if \\(\\$cf_env\\) \\{ return 404; \\}`))
   })
 
@@ -252,7 +303,12 @@ describe('the security headers on the documents this file adds', () => {
   it('are repeated in both new locations, because add_header does not accumulate', () => {
     // A location that declares ANY add_header inherits NONE from the server level. Both blocks set
     // Cache-Control, so both have to restate the three security headers or ship without them.
-    for (const path of ['/sitemap.xml', '/robots.txt']) {
+    // ONE DOCUMENT, NOT TWO. `/robots.txt` was in this list and its location no longer exists:
+    // a crawler reads robots.txt at the ORIGIN ROOT and nowhere else, so a folder has none and
+    // micro-site's is the copy that decides whether this surface is indexed. The sitemap is
+    // mounted rather than deleted, because a sitemap is fetched at whatever address announces it
+    // and the apex's robots.txt announces this one by its full path.
+    for (const path of [`${BASE}/sitemap.xml`]) {
       const block = new RegExp(
         `location = ${path.replace('.', '\\.')} \\{([\\s\\S]*?)\\n    \\}`,
       ).exec(nginx)
@@ -269,8 +325,8 @@ describe('the security headers on the documents this file adds', () => {
   })
 
   it('are repeated in /assets/ too, which is the location that serves the code', () => {
-    const block = /location \/assets\/ \{([\s\S]*?)\n {4}\}/.exec(nginx)
-    assert.ok(block, 'no /assets/ location')
+    const block = new RegExp(`location ${BASE}/assets/ \\{([\\s\\S]*?)\\n {4}\\}`).exec(nginx)
+    assert.ok(block, `no ${BASE}/assets/ location`)
     assert.match(block[1] ?? '', /X-Content-Type-Options "nosniff"/)
   })
 })
