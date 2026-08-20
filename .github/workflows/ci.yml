@@ -481,10 +481,10 @@ jobs:
           set -uo pipefail
           directives=$(grep -v '^[[:space:]]*#' nginx.conf)
           if printf '%s\n' "$directives" | grep -nE 'try_files[[:space:]]+\$uri[[:space:]]+(\$uri/[[:space:]]+)?/index\.html'; then
-            echo "::error::unknown paths must 404; serve the shell through error_page 404 /index.html"
+            echo "::error::unknown paths must 404; serve the shell through error_page 404 /developers/index.html"
             exit 1
           fi
-          grep -q 'error_page 404 /index.html' <<<"$directives"
+          grep -q 'error_page 404 /developers/index.html' <<<"$directives"
           echo "ok: unknown paths answer 404"
 
       - name: The auth callback is redeemed before the app renders
@@ -752,7 +752,7 @@ jobs:
           set -uo pipefail
           docker run -d --name ci-devportal-web -p 127.0.0.1:8080:8080 devportal-web:ci
           for _ in $(seq 1 30); do
-            code=$(curl -s -m 5 -o /dev/null -w '%{http_code}' http://127.0.0.1:8080/ || true)
+            code=$(curl -s -m 5 -o /dev/null -w '%{http_code}' http://127.0.0.1:8080/developers/ || true)
             [ "$code" = "200" ] && break
             sleep 1
           done
@@ -763,17 +763,32 @@ jobs:
           # A route this app OWNS must survive a hard refresh. The path is DEEP_LINK_PATH in
           # src/lib/routes.ts, and test/routes.test.ts checks this file against it. It is two
           # segments under the wildcard, which is the shape a developer actually bookmarks.
-          deep=$(curl -s -m 5 -o /dev/null -w '%{http_code}' http://127.0.0.1:8080/projects/5c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/keys || true)
+          deep=$(curl -s -m 5 -o /dev/null -w '%{http_code}' http://127.0.0.1:8080/developers/projects/5c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f/keys || true)
           [ "$deep" = "200" ] || { echo "::error::an owned route returned $deep — it must be served the shell"; fail=1; }
 
           # The organisation page, which is the other address somebody links a colleague to.
-          org=$(curl -s -m 5 -o /dev/null -w '%{http_code}' http://127.0.0.1:8080/organisations/5c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f || true)
+          org=$(curl -s -m 5 -o /dev/null -w '%{http_code}' http://127.0.0.1:8080/developers/organisations/5c1d2e3f-4a5b-4c6d-8e7f-9a0b1c2d3e4f || true)
           [ "$org" = "200" ] || { echo "::error::an organisation page returned $org"; fail=1; }
 
           # A route it does NOT own must answer 404 while still serving the shell, so the reader
           # gets a real page and the status line tells the truth. This is the assertion the org's
           # reusable image job cannot make, because it requires a 200 for any deep link.
-          unknown=$(curl -s -m 5 -o /dev/null -w '%{http_code}' http://127.0.0.1:8080/nope/not/a/route || true)
+
+          # ── TWO ADDRESSES THAT MUST BE EMPTY, AND THEY ARE THE POINT OF THE MOUNT ──────────
+          #
+          # This image is built for `/developers` and copied there by the Dockerfile. `/` answering
+          # 200 would mean it had been copied to the document root instead — and on the apex that
+          # address is MICRO-SITE's home page.
+          #
+          # `/robots.txt` for the sharper version: a crawler reads robots.txt at the ORIGIN ROOT
+          # and nowhere else, so a folder has none. One served here would be a SECOND document at
+          # an address micro-site already owns, and which won would be decided by router priority
+          # rather than by anybody's intent. The nginx block was deleted; this keeps it deleted.
+          root=$(curl -s -m 5 -o /dev/null -w '%{http_code}' http://127.0.0.1:8080/ || true)
+          [ "$root" = 404 ] || { echo "FAIL: / answered $root; this image belongs at /developers and nowhere else"; exit 1; }
+          robots=$(curl -s -m 5 -o /dev/null -w '%{http_code}' http://127.0.0.1:8080/robots.txt || true)
+          [ "$robots" = 404 ] || { echo "FAIL: /robots.txt answered $robots; a folder has none, micro-site owns that address"; exit 1; }
+          unknown=$(curl -s -m 5 -o /dev/null -w '%{http_code}' http://127.0.0.1:8080/developers/nope/not/a/route || true)
           [ "$unknown" = "404" ] || { echo "::error::an unknown address returned $unknown; it must be 404"; fail=1; }
           # NOT A PIPE INTO `grep -q` — the hazard this file already avoids with here-strings
           # elsewhere, on the one check that still had it. grep -q exits at its first match and
@@ -786,7 +801,7 @@ jobs:
           # micro-hub-web#16 then failed here twice in a row with the build green in the same run.
           # Measured 2026-08-10 — micro-org#347. Capturing first leaves no pipe to close early, and
           # `case` is an exact glob rather than a regex.
-          shell_404=$(curl -s -m 5 http://127.0.0.1:8080/nope/not/a/route || true)
+          shell_404=$(curl -s -m 5 http://127.0.0.1:8080/developers/nope/not/a/route || true)
           case "$shell_404" in
             *'<div id="root">'*) ;;
             *) echo "::error::the 404 did not serve the app shell"; fail=1 ;;
@@ -801,8 +816,17 @@ jobs:
             esac
           }
 
-          asset=$(curl -s http://127.0.0.1:8080/ | grep -oE '/assets/[^"]+\.js' | head -1)
-          for target in "http://127.0.0.1:8080/" "http://127.0.0.1:8080/organisations" "http://127.0.0.1:8080$asset"; do
+          # ── THE PATTERN MUST BE THE WHOLE PATH, NOT THE `/assets/` INSIDE IT ────────────────
+          #
+          # This read `grep -oE '/assets/[^"]+\.js'`, and since the mount the shell references
+          # `/developers/assets/index-<hash>.js`. That pattern still MATCHES — on the substring —
+          # and yields `/assets/index-<hash>.js`, an address this container 404s. The header loop
+          # below would then read the 404's `no-store` and pass, reporting the immutable one-year
+          # cache on the bundle's JavaScript as verified when nothing had checked it. Fourth time
+          # this exact substring trap has been written in this estate.
+          asset=$(curl -s http://127.0.0.1:8080/developers/ | grep -oE '/developers/assets/[^"]+\.js' | head -1)
+          [ -n "$asset" ] || { echo 'FAIL: the shell references no /developers/assets/*.js'; exit 1; }
+          for target in "http://127.0.0.1:8080/developers/" "http://127.0.0.1:8080/developers/organisations" "http://127.0.0.1:8080$asset"; do
             [ -n "$asset" ] || [ "$target" != "http://127.0.0.1:8080" ] || continue
             check "$target" X-Content-Type-Options "nosniff" "$target"
             # DENY, not SAMEORIGIN: every gated screen here creates or revokes a credential and
@@ -811,13 +835,13 @@ jobs:
             check "$target" X-Frame-Options "DENY" "$target"
             check "$target" Referrer-Policy "strict-origin" "$target"
           done
-          check "http://127.0.0.1:8080/" Cache-Control "no-store" "the shell"
-          check "http://127.0.0.1:8080/organisations" Cache-Control "no-store" "an enumerated route"
+          check "http://127.0.0.1:8080/developers/" Cache-Control "no-store" "the shell"
+          check "http://127.0.0.1:8080/developers/organisations" Cache-Control "no-store" "an enumerated route"
           [ -n "$asset" ] && check "http://127.0.0.1:8080$asset" Cache-Control "immutable" "a hashed asset"
 
           # This surface must NOT be kept out of an index: the scope vocabulary and the application
           # directory are public pages this product wants read.
-          robots=$(curl -sI http://127.0.0.1:8080/ | tr -d '\r' | grep -ci '^X-Robots-Tag:' || true)
+          robots=$(curl -sI http://127.0.0.1:8080/developers/ | tr -d '\r' | grep -ci '^X-Robots-Tag:' || true)
           [ "${robots:-0}" = "0" ] || { echo "::error::this public surface sends X-Robots-Tag"; fail=1; }
 
           # The brand chrome is SERVED by the image, not merely committed to the repository. The web
@@ -825,7 +849,7 @@ jobs:
           # frontends shipped an image with no icon in it while their own brand test passed. Fixed
           # upstream at web-template/Dockerfile:39; this probe is what would have caught it.
           for asset in favicon-32x32.png favicon-192x192.png og-1200x630.png; do
-            code=$(curl -s -m 5 -o /dev/null -w '%{http_code}' "http://127.0.0.1:8080/$asset" || true)
+            code=$(curl -s -m 5 -o /dev/null -w '%{http_code}' "http://127.0.0.1:8080/developers/$asset" || true)
             [ "$code" = "200" ] || { echo "::error::/$asset returned $code from the image"; fail=1; }
           done
 

@@ -21,6 +21,7 @@ import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
 import { describe, it } from 'node:test'
 import {
+  BASE,
   BARE_PATHS,
   DEEP_LINK_PATH,
   NAV,
@@ -57,12 +58,23 @@ const directives = nginx
  * this app's own "there is nothing at this address" page served with a 200.
  */
 function nginxServed(): { bare: string[]; prefixOnly: string[] } {
-  const bare = [...directives.matchAll(/location\s+~\s+\^\/\(([^)]+)\)\(\/\|\$\)/g)].flatMap(
-    (m) => (m[1] ?? '').split('|').map((p) => p.trim()),
-  )
-  const prefixOnly = [...directives.matchAll(/location\s+~\s+\^\/([a-z-]+)\//g)].map(
-    (m) => m[1] ?? '',
-  )
+  // ── BOTH BLOCKS ARE MOUNTED, AND THIS RETURNS ROUTER PATHS EITHER WAY ──────────────────────
+  //
+  // nginx enumerates `^<BASE>/(organisations|apps)(/|$)` and `^<BASE>/projects/` since wave 3g.
+  // These patterns were anchored on a bare `^/`, so after the mount the first matched NOTHING and
+  // the second matched `developers` — which then failed as "nginx.conf serves /developers, which
+  // is not in the route table". Two failures, neither describing the actual difference.
+  //
+  // The mount goes into the PATTERN and comes back off the RESULT, so every caller below keeps
+  // comparing against `NON_INDEX_PATHS`, `BARE_PATHS` and `PREFIX_ONLY_PATHS` — which are router
+  // paths, and are the source this file exists to hold nginx against.
+  const mount = BASE.replace(/\//g, '\\/')
+  const bare = [
+    ...directives.matchAll(new RegExp(`location\\s+~\\s+\\^${mount}\\/\\(([^)]+)\\)\\(\\/\\|\\$\\)`, 'g')),
+  ].flatMap((m) => (m[1] ?? '').split('|').map((p) => p.trim()))
+  const prefixOnly = [
+    ...directives.matchAll(new RegExp(`location\\s+~\\s+\\^${mount}\\/([a-z-]+)\\/`, 'g')),
+  ].map((m) => m[1] ?? '')
   assert.ok(bare.length + prefixOnly.length > 0, 'nginx.conf has no enumerated route block')
   return { bare, prefixOnly }
 }
@@ -261,7 +273,7 @@ describe('nginx serves exactly the routes that exist', () => {
   })
 
   it('serves the index', () => {
-    assert.match(directives, /location = \/\s*\{/)
+    assert.match(directives, new RegExp(`location = /developers\\s*\\{`))
   })
 
   it('does NOT use the SPA 200-fallback', () => {
@@ -270,12 +282,12 @@ describe('nginx serves exactly the routes that exist', () => {
   })
 
   it('keeps the honest 404 through error_page', () => {
-    assert.match(directives, /error_page 404 \/index\.html/)
+    assert.match(directives, new RegExp(`error_page 404 /developers/index\\.html`))
   })
 
   it('404s a missing asset rather than serving the shell for it', () => {
     // A JavaScript request answered with HTML fails with a syntax error naming the wrong file.
-    assert.match(directives, /location \/assets\/\s*\{\s*try_files \$uri =404/)
+    assert.match(directives, new RegExp(`location /developers/assets/\\s*\\{\\s*try_files \\$uri =404`))
   })
 
   it('sets the three security headers at the server level', () => {
@@ -311,12 +323,12 @@ describe('nginx serves exactly the routes that exist', () => {
   })
 
   it('never caches the shell', () => {
-    const root = /location = \/\s*\{([^}]*)\}/.exec(directives)?.[1] ?? ''
+    const root = new RegExp(`location = /developers\\s*\\{([^}]*)\\}`).exec(directives)?.[1] ?? ''
     assert.match(root, /Cache-Control "no-store"/)
   })
 
   it('caches hashed assets immutably', () => {
-    const assets = /location \/assets\/\s*\{([^}]*)\}/.exec(directives)?.[1] ?? ''
+    const assets = new RegExp(`location /developers/assets/\\s*\\{([^}]*)\\}`).exec(directives)?.[1] ?? ''
     assert.match(assets, /immutable/)
   })
 })

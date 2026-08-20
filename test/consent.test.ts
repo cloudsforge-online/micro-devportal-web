@@ -63,7 +63,7 @@ const MEASUREMENT_ID =
   new RegExp(`<meta name="${ANALYTICS_META_NAME}" content="([^"]*)"`).exec(HTML)?.[1] ?? ''
 
 /** The surface's real origin. On localhost the banner does not render, and nothing is proven. */
-const AT = 'https://developers.cloudsforge.online/'
+const AT = 'https://cloudsforge.online/developers/'
 
 /**
  * The banner, under a head that carries this bundle's shell tags.

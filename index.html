@@ -133,7 +133,18 @@
       property="og:description"
       content="Enrol an organisation, create a project, and issue an API key with exactly the scopes it needs. A key's secret is shown once and cannot be recovered."
     />
-    <meta property="og:image" content="/og-1200x630.png" />
+    <!--
+      ── THE MOUNT IS IN THIS BY HAND, AND IT HAS TO BE ──────────────────────────────────────────
+      vite rewrites `src` and `href` against `base` and does NOT touch `content`, so a
+      root-relative `content="/og-1200x630.png"` survives the build unchanged — and on the apex
+      that address belongs to MICRO-SITE. A link shared to this console would render the company's
+      card rather than the platform's, silently, and only ever in somebody else's chat client.
+      It never 404s, which is why the same line went unnoticed on seven surfaces until 2026-08-20.
+
+      `mountAsset()` in @cloudsforge/ui composes the runtime head the same way; this is the copy a
+      link-preview fetcher reads, and those generally do not execute JavaScript.
+    -->
+    <meta property="og:image" content="/developers/og-1200x630.png" />
 
     <!--
       `surfaceMeta('developers').title`, which is the registry's `name` and nothing else. It read

@@ -34,12 +34,13 @@ import { WebhooksPage } from './pages/webhooks.tsx'
 import { OAuthPage } from './pages/oauth.tsx'
 import { UsagePage } from './pages/usage.tsx'
 import { NotFoundPage } from './pages/not-found.tsx'
+import { BASE } from './lib/routes.ts'
 
 export function App() {
   const unregistered = !placementIsKnown()
 
   return (
-    <BrowserRouter>
+    <BrowserRouter basename={BASE}>
       <ScrollToTop />
       <AuthProvider>
         <Routes>
