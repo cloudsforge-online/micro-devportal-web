@@ -134,7 +134,12 @@ const MECHANISM: Readonly<Record<Exclude<Auth, 'none'>, RegExp>> = {
   // All three parts, because any one alone would accept a weaker handler: the single resolution,
   // the operator branch, and the `project:write` fallback for everybody else.
   'operator-or-lower':
-    /await authenticateAny\(ctx, deps\)[\s\S]*isOperator\(caller\)[\s\S]*authoriseProjectAs\(caller, deps, [^)]*'write'\)/,
+    // `authoriseProjectAs(ctx.sql, caller, …)` since the network consolidation (micro-deploy
+    // `docs/network-consolidation.md`): the handle is resolved once per request from the
+    // `CF-Network` header, and `deps.sql` is now a selector with no query methods. The rule this
+    // pins is unchanged — a non-operator is still held to a project they may write — and it is now
+    // held within their own estate as well.
+    /await authenticateAny\(ctx, deps\)[\s\S]*isOperator\(caller\)[\s\S]*authoriseProjectAs\(ctx\.sql, caller, deps, [^)]*'write'\)/,
   hmac: /verifyInbound\(raw, headerOf\(ctx\.req, SIGNATURE_HEADER\), deps\.ingestSecrets\)/,
 }
 
